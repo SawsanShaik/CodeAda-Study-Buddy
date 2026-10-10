@@ -165,6 +165,20 @@ textarea { width: 100%; resize: vertical; min-height: 72px; }
 .tag { font: 500 12px var(--body); color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; margin-left: 6px; }
 .item .pick-details { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 8px; padding-left: 36px; }
 .pick-details input { flex: 1 1 220px; }
+/* Scroll wheel for how long a task takes (js/planner.js). Rows are 32px; the middle one is picked. */
+.time-wheel {
+  list-style: none; margin: 0; padding: 32px 0; width: 112px; height: 96px; flex: none;
+  overflow-y: auto; scroll-snap-type: y mandatory; overscroll-behavior: contain; scrollbar-width: none;
+  border: 2px solid var(--line); border-radius: 14px;
+  background: linear-gradient(transparent 30px, var(--violet-soft) 30px, var(--violet-soft) 62px, transparent 62px) var(--card);
+  -webkit-mask-image: linear-gradient(transparent, #000 35%, #000 65%, transparent);
+  mask-image: linear-gradient(transparent, #000 35%, #000 65%, transparent);
+}
+.time-wheel::-webkit-scrollbar { display: none; }
+.time-wheel:focus { border-color: var(--violet); outline: none; }
+.time-wheel li { height: 32px; line-height: 32px; text-align: center; scroll-snap-align: center; color: var(--muted); cursor: pointer; }
+.time-wheel li[aria-selected="true"] { color: var(--ink); font-weight: 700; }
+.pick-details { align-items: center; }
 .planner-times { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 20px; }
 .planner-times label { display: flex; flex-direction: column; gap: 6px; font-weight: 700; }
 .planner .btn-big { width: 100%; margin-top: 16px; }

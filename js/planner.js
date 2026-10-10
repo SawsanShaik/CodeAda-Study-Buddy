@@ -16,9 +16,44 @@ const store = {
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 const FEED_PATTERN = /^https:\/\/(canvas\.illinois\.edu|[\w-]+\.instructure\.com)\/feeds\/calendars\/[^/]+\.ics$/;
-const TIME_OPTIONS = [15, 30, 45, 60, 90, 120, 180, 240];
-const minutesLabel = m => (m < 60 ? `${m} min` : `${m / 60} hr`);
-const minuteOptions = selected => TIME_OPTIONS.map(m => `<option value="${m}"${m === selected ? " selected" : ""}>${minutesLabel(m)}</option>`).join("");
+// How long a task takes: every 15 minutes up to 4 hours, picked by scrolling a little wheel.
+const TIME_OPTIONS = Array.from({ length: 16 }, (_, i) => (i + 1) * 15);
+const minutesLabel = m => {
+  const h = Math.floor(m / 60), rest = m % 60;
+  return h ? (rest ? `${h} hr ${rest}` : `${h} hr`) : `${m} min`;
+};
+const WHEEL_ROW = 32;  // px, matches .time-wheel li in styles.css
+const timeWheel = (attr, id, selected) => `<ul class="time-wheel" ${attr}="${esc(id)}" data-value="${selected}" tabindex="0" role="listbox" aria-label="How long">
+    ${TIME_OPTIONS.map(m => `<li role="option" aria-selected="${m === selected}">${minutesLabel(m)}</li>`).join("")}
+  </ul>`;
+
+// Scrolling a wheel snaps to a time, then fires a "change" event with the minutes in data-value.
+function initWheels(root) {
+  root.querySelectorAll(".time-wheel").forEach(wheel => {
+    const rows = [...wheel.children];
+    const select = i => {
+      const value = TIME_OPTIONS[i];
+      rows.forEach((row, j) => row.setAttribute("aria-selected", String(j === i)));
+      if (Number(wheel.dataset.value) === value) return;
+      wheel.dataset.value = value;
+      wheel.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    const goTo = i => wheel.scrollTo({ top: Math.max(0, Math.min(rows.length - 1, i)) * WHEEL_ROW, behavior: "smooth" });
+    wheel.scrollTop = TIME_OPTIONS.indexOf(Number(wheel.dataset.value)) * WHEEL_ROW;
+    let settle = null;
+    wheel.addEventListener("scroll", () => {
+      clearTimeout(settle);
+      settle = setTimeout(() => select(Math.round(wheel.scrollTop / WHEEL_ROW)), 120);
+    });
+    rows.forEach((row, i) => row.addEventListener("click", () => goTo(i)));
+    wheel.addEventListener("keydown", e => {
+      const step = { ArrowUp: -1, ArrowDown: 1 }[e.key];
+      if (!step) return;
+      e.preventDefault();
+      goTo(Math.round(wheel.scrollTop / WHEEL_ROW) + step);
+    });
+  });
+}
 
 // ---------- Saved data ----------
 // Last Canvas data the extension sent, so the list shows right away.
@@ -100,7 +135,7 @@ export function setupPlanner({ getTodos, startSession, tellExtension, extensionI
       savePlan();
       render();
     }
-    if (minutes) { plan.picks[minutes].minutes = Number(e.target.value); savePlan(); renderSummary(); }
+    if (minutes) { plan.picks[minutes].minutes = Number(e.target.dataset.value); savePlan(); renderSummary(); }
     if (amount) { plan.picks[amount].amount = e.target.value; savePlan(); }
   });
   $("canvasList").addEventListener("input", e => {
@@ -117,7 +152,7 @@ export function setupPlanner({ getTodos, startSession, tellExtension, extensionI
       savePlan();
       render();
     }
-    if (todoMinutes) { plan.todoPicks[todoMinutes] = Number(e.target.value); savePlan(); renderSummary(); }
+    if (todoMinutes) { plan.todoPicks[todoMinutes] = Number(e.target.dataset.value); savePlan(); renderSummary(); }
   });
 
   // ---------- Day settings ----------
@@ -202,6 +237,7 @@ function renderCanvas() {
       <div class="course-name">${esc(course)} <span>${items.length} due</span></div>
       <ul class="list">${items.map(renderCanvasItem).join("")}</ul>
     </div>`).join("");
+  initWheels($("canvasList"));
 }
 
 function renderCanvasItem(e) {
@@ -216,7 +252,7 @@ function renderCanvasItem(e) {
       </div>
       ${pick ? `<div class="pick-details">
         <input data-amount="${esc(e.uid)}" value="${esc(pick.amount)}" placeholder="How much today? e.g. all of it, half, Q1–3" aria-label="How much today" />
-        <select data-minutes="${esc(e.uid)}" aria-label="How long">${minuteOptions(pick.minutes)}</select>
+        ${timeWheel("data-minutes", e.uid, pick.minutes)}
       </div>` : ""}
     </li>`;
 }
@@ -229,9 +265,10 @@ function renderTodoPicks(todos) {
     return `<li class="item${minutes ? " picked" : ""}">
       <input type="checkbox" data-todo="${t.id}" ${minutes ? "checked" : ""} aria-label="Plan ${esc(t.text)} today" />
       <div class="item-main"><div class="item-title">${esc(t.text)}</div></div>
-      ${minutes ? `<select data-todo-minutes="${t.id}" aria-label="How long">${minuteOptions(minutes)}</select>` : ""}
+      ${minutes ? timeWheel("data-todo-minutes", t.id, minutes) : ""}
     </li>`;
   }).join("");
+  initWheels($("todoPicks"));
 }
 
 // ---------- Making the schedule ----------

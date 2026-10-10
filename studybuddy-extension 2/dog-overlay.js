@@ -27,6 +27,31 @@ const MOUTH_UP = (SIZE.height - 15) * DOG_SCALE;
 // The sitting dog's left paw, so the dropped ball lands right beside it.
 const SITTING_LEFT = 10 * DOG_SCALE;
 
+// A bright two-note bell for good news: a session is done or a break is over.
+// Only plays on the tab you're looking at, so open tabs don't all ring at once.
+export function ding() {
+  if (document.hidden) return;
+  try {
+    const audio = new AudioContext();
+    [[1047, 0], [1568, 0.16]].forEach(([freq, delay]) => {
+      const tone = audio.createOscillator();
+      const volume = audio.createGain();
+      const at = audio.currentTime + delay;
+      tone.type = 'sine';
+      tone.frequency.value = freq;
+      volume.gain.setValueAtTime(0.0001, at);
+      volume.gain.exponentialRampToValueAtTime(0.25, at + 0.01);
+      volume.gain.exponentialRampToValueAtTime(0.0001, at + 1.1);
+      tone.connect(volume).connect(audio.destination);
+      tone.start(at);
+      tone.stop(at + 1.2);
+    });
+    setTimeout(() => audio.close(), 1600);
+  } catch {
+    // sound not available
+  }
+}
+
 const STYLE = `
 :host { all: initial; }
 .overlay {
@@ -352,29 +377,34 @@ export function createOverlay(options = {}) {
   let dogX = 0;
   let dogY = EDGE; // distance from the bottom of the screen
   let alertDog = null; // the big dog on the full-screen alert, only while it's showing
+  let celebrating = false; // a happy pop-up is showing; it stays up when the session ends
   let alertTimer = null;
 
   // ---- Full-screen alert ----
 
-  function showAlert({ heading: title = '', text: message = '', buttons = [] }) {
+  // happy: a teal celebration (session done, break over) instead of the red distraction alert.
+  function showAlert({ heading: title = '', text: message = '', buttons = [], happy = false }) {
     clearTimeout(alertTimer);
-    alertScreen.classList.remove('happy');
+    celebrating = happy;
+    alertScreen.classList.toggle('happy', happy);
     alertScreen.setAttribute('aria-label', title || message);
     alertLabel.textContent = title;
     alertMessage.textContent = message;
     alertActions.replaceChildren(
-      ...buttons.slice(0, 2).map(({ label, action }) => {
+      ...buttons.slice(0, 2).map(({ label, action, onClick }) => {
         const button = el('button', 'action', label);
         button.onclick = () => {
           hideAlert();
-          respond(action);
+          if (onClick) onClick();
+          else respond(action);
         };
         return button;
       }),
     );
     alertScreen.hidden = false;
     alertDog ??= createPixelDog(alertDogSlot, { scale: 6 });
-    alertDog.setState('nudge');
+    alertDog.setState(happy ? 'celebrate' : 'nudge');
+    if (happy) ding();
     alertActions.querySelector('button')?.focus();
     // The corner dog is awake too.
     hideBubble();
@@ -398,6 +428,7 @@ export function createOverlay(options = {}) {
 
   function hideAlert() {
     clearTimeout(alertTimer);
+    celebrating = false;
     alertScreen.hidden = true;
     alertDog?.destroy();
     alertDog = null;
@@ -539,14 +570,16 @@ export function createOverlay(options = {}) {
     startPlay();
   }
 
-  // Time's up: the dog comes back to the corner and asks to get back to work.
+  // Time's up: a ding, and the dog celebrates on a pop-up that asks you to get back to work.
   async function finishBreak() {
     clearInterval(breakTick);
     breakOver = true;
     hideBreakScreen();
-    showBubble({
-      message: "Break's over! Ready to get back to it?",
+    showAlert({
+      heading: "Break's over!",
+      text: 'Ready to get back to it?',
       buttons: [{ label: 'Back to work', onClick: backToWork }],
+      happy: true,
     });
     await stopPlay('play');
   }
@@ -559,6 +592,7 @@ export function createOverlay(options = {}) {
   function endBreak({ instant = false } = {}) {
     if (!breakEndsAt) return;
     clearInterval(breakTick);
+    if (breakOver) hideAlert(); // "Back to work" was clicked on another tab
     breakEndsAt = null;
     breakOver = false;
     hideBreakScreen();
@@ -680,8 +714,10 @@ export function createOverlay(options = {}) {
   // ---- Public controls ----
 
   function say({ state = 'nudge', heading: title = '', text: message = '', buttons = [], fullscreen = false } = {}) {
+    if (state === 'celebrate' && fullscreen) return showAlert({ heading: title, text: message, buttons, happy: true });
     if (breakEndsAt) return; // no nudges during a break
     if (fullscreen) return showAlert({ heading: title, text: message, buttons });
+    if (state === 'breakSuggestion') ding();
     overlay.classList.add('open');
     dog.setState(state);
     showBubble({
@@ -701,7 +737,7 @@ export function createOverlay(options = {}) {
     },
     close() {
       endBreak({ instant: true });
-      hideAlert();
+      if (!celebrating) hideAlert();
       hideBubble();
       overlay.classList.remove('open');
     },

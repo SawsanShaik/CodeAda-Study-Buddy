@@ -7,7 +7,7 @@ import {
   loadMascot, saveMascot, defaultMascot, renderMascot, pickMessage, mascotMarkup,
   PROBLEM_LABELS, MESSAGE_LABELS, DEFAULT_MESSAGES,
 } from "./mascots.js";
-import { createOverlay } from "../studybuddy-extension 2/dog-overlay.js";
+import { createOverlay, ding } from "../studybuddy-extension 2/dog-overlay.js";
 import { setupPlanner } from "./planner.js";
 
 // ---------- Talking to the StudyBuddy Chrome extension ----------
@@ -479,6 +479,11 @@ function endSession(finished) {
   detector?.stop();
   hideAlarm();
   buddy.close();
+  if (finished) {
+    const message = `You did it! ${mascot.name} is so proud.`;
+    tellExtension("session-done", { label: "Session complete!", message, name: mascot.name });
+    notifyIfHidden(`${mascot.name}: Session complete!`, message);
+  }
   tellExtension("session-end");
 
   const studied = elapsed();
@@ -498,6 +503,7 @@ function endSession(finished) {
   saveHistory();
 
   showSummary(result, s, finished);
+  if (finished) celebrate("Session complete!", `You did it! ${mascot.name} is so proud.`, "Yay!");
 }
 
 // =========================================================
@@ -537,6 +543,23 @@ function hideAlarm() {
   clearInterval(chimeTimer);
   clearTimeout(hideTimer);
   $("alarm").hidden = true;
+  $("alarmOk").textContent = "I'm back on it";
+}
+
+// Good news (a session is done): a ding and the dog celebrates on the pop-up.
+function celebrate(label, message, button) {
+  clearTimeout(hideTimer);
+  clearInterval(chimeTimer);
+  const alarm = $("alarm");
+  alarm.hidden = false;
+  alarm.classList.add("happy");
+  renderMascot($("alarmMascot"), mascot, "happy");
+  $("alarmLabel").textContent = label;
+  $("alarmMsg").textContent = message;
+  $("alarmOk").textContent = button;
+  $("alarmOk").hidden = false;
+  $("alarmOk").focus();
+  ding();
 }
 
 $("alarmOk").addEventListener("click", () => {

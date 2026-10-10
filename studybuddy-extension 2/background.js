@@ -58,6 +58,17 @@ async function handle(msg, sender) {
         ],
       });
     }
+    // Session finished: the dog celebrates (with a ding) on whatever tab you're on
+    if (msg.type === "session-done") {
+      await alertUser(msg, {
+        state: "celebrate",
+        fullscreen: true,
+        buttons: [
+          { label: "See how I did", action: "go_to_app" },
+          { label: "Yay!", action: "dismiss" },
+        ],
+      });
+    }
     if (msg.type === "focused") await sendToAllTabs({ type: "focused", message: msg.message });
     // The app started or ended a break itself; the dog on every tab follows along.
     if (msg.type === "break-start") await chrome.storage.local.set({ breakEndsAt: msg.endsAt });
