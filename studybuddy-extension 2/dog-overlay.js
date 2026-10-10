@@ -607,6 +607,13 @@ export function createOverlay(options = {}) {
     // A 'take_break' button opens the break-length picker instead of closing the bubble.
     say,
     hideBubble,
+    // Opens the break-length picker right away (or the break screen if one is running).
+    pickBreak() {
+      if (breakEndsAt) return showBreakScreen();
+      overlay.classList.add('open');
+      dog.setState('breakSuggestion');
+      showBreakPicker();
+    },
     // True while the speech bubble is showing a message.
     get talking() {
       return !bubble.hidden;

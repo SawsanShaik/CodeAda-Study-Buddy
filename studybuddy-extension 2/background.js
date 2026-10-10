@@ -36,8 +36,28 @@ async function handle(msg, sender) {
       await chrome.action.setBadgeText({ text: "" });
       await sendToAllTabs({ type: "hide" });
     }
-    if (msg.type === "distracted") await alertUser(msg);
+    if (msg.type === "distracted") {
+      await alertUser(msg, {
+        state: "nudge",
+        buttons: [
+          { label: "I'm back on it", action: "dismiss" },
+          { label: `Open ${msg.name ?? "StudyBuddy"}`, action: "go_to_app" },
+        ],
+      });
+    }
+    if (msg.type === "suggest-break") {
+      await alertUser(msg, {
+        state: "breakSuggestion",
+        buttons: [
+          { label: "Take a break", action: "take_break" },
+          { label: "I'm good", action: "dismiss" },
+        ],
+      });
+    }
     if (msg.type === "focused") await sendToAllTabs({ type: "focused", message: msg.message });
+    // The app started or ended a break itself; the dog on every tab follows along.
+    if (msg.type === "break-start") await chrome.storage.local.set({ breakEndsAt: msg.endsAt });
+    if (msg.type === "break-end") await chrome.storage.local.set({ breakEndsAt: null });
     return null;
   }
 
@@ -53,9 +73,30 @@ function setDogActive(active) {
   return chrome.storage.local.set({ sessionActive: active, breakEndsAt: null });
 }
 
+// Breaks can start from the dog on any tab (it writes breakEndsAt). Tell the app so it
+// pauses the timer and camera, and resumes when the break ends.
+chrome.storage.onChanged.addListener(async (changes, area) => {
+  if (area !== "local" || !("breakEndsAt" in changes)) return;
+  const endsAt = changes.breakEndsAt.newValue;
+  const { session } = await chrome.storage.session.get("session");
+  if (!session) return;
+  // While paused the session can't expire, and afterwards it ends that much later.
+  // (The app also sends its exact new end time when it resumes.)
+  const next = endsAt
+    ? { ...session, paused: true, pausedAt: session.paused ? session.pausedAt : Date.now() }
+    : { ...session, paused: false, endsAt: session.paused ? session.endsAt + (Date.now() - session.pausedAt) : session.endsAt };
+  await chrome.storage.session.set({ session: next });
+  await sendToApp(session, endsAt ? { type: "break-start", endsAt } : { type: "break-end" });
+});
+
+function sendToApp(session, message) {
+  if (!session.appTabId) return;
+  return chrome.tabs.sendMessage(session.appTabId, { source: "studybuddy-extension", ...message }).catch(() => {});
+}
+
 async function getSession() {
   const { session } = await chrome.storage.session.get("session");
-  if (session && Date.now() > session.endsAt) {
+  if (session && !session.paused && Date.now() > session.endsAt) {
     await chrome.storage.session.remove("session");
     await setDogActive(false);
     await chrome.action.setBadgeText({ text: "" });
@@ -66,28 +107,20 @@ async function getSession() {
 
 let lastNoteId = null;
 
-async function alertUser(msg) {
-  const session = await getSession();
+// Get the user's attention: the dog says `msg.message` on the tab they're on
+// (prompt sets the dog's state and buttons), plus a system notification.
+async function alertUser(msg, prompt) {
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   const win = tab ? await chrome.windows.get(tab.windowId).catch(() => null) : null;
   const chromeInFront = !!win?.focused;
 
-  // Looking at the StudyBuddy tab: the app shows its own full-screen alarm
+  // Looking at the StudyBuddy tab: the app shows the alert itself
   if (chromeInFront && isApp(tab.url)) return;
 
   // On another website: the dog wakes up in the corner of that page and says something
   let shown = false;
   if (chromeInFront) {
-    shown = await showOverlay(tab.id, {
-      type: "SHOW_CHARACTER",
-      state: "nudge",
-      heading: msg.label,
-      text: msg.message,
-      buttons: [
-        { label: "I'm back on it", action: "dismiss" },
-        { label: `Open ${session?.name ?? "StudyBuddy"}`, action: "go_to_app" },
-      ],
-    });
+    shown = await showOverlay(tab.id, { type: "SHOW_CHARACTER", heading: msg.label, text: msg.message, ...prompt });
   }
 
   // Also send a Mac notification (always when Chrome isn't in front,
