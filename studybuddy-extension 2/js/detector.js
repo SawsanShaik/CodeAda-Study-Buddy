@@ -22,7 +22,8 @@ export const SETTINGS = {
   calibrateMs: 2000,     // how long to learn the normal sitting position
 };
 
-const MEDIAPIPE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+// MediaPipe ships inside the extension (see vendor/README.md): extension pages can't load scripts from a CDN.
+const MEDIAPIPE = new URL("../vendor/mediapipe", import.meta.url).href;
 const FACE_MODEL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
 
 let phoneModel = null;
@@ -30,7 +31,7 @@ let faceModel = null;
 
 async function loadModels() {
   if (phoneModel && faceModel) return;
-  if (!window.cocoSsd) throw new Error("the AI models didn't download. Check your internet connection and reload the page");
+  if (!window.cocoSsd) throw new Error("the phone detector didn't load. Reload the page");
   const loadFace = async () => {
     const { FaceLandmarker, FilesetResolver } = await import(`${MEDIAPIPE}/vision_bundle.mjs`);
     const files = await FilesetResolver.forVisionTasks(`${MEDIAPIPE}/wasm`);

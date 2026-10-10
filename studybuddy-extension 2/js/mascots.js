@@ -3,7 +3,7 @@
 // so the app and the extension always show the same dog),
 // what it says, and saving the user's name and messages for it.
 // =========================================================
-import { createPixelDog, dogSvg } from "../studybuddy-extension 2/pixelDog.js";
+import { createPixelDog, dogSvg } from "../pixelDog.js";
 
 export const DEFAULT_MESSAGES = {
   phone:  ["Phone down! Your future self says thanks.", "Caught you scrolling 👀 Back to it!", "That phone can wait. Your goals can't."],
