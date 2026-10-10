@@ -15,7 +15,7 @@
     <nav aria-label="Main">
       <button data-go="todo">To-do</button>
       <button data-go="schedule">Schedule</button>
-      <button data-go="studio">Mascot</button>
+      <button data-go="studio">My pup</button>
     </nav>
   </header>
 
@@ -162,39 +162,24 @@
 
     <!-- MASCOT STUDIO -->
     <section id="screen-studio" class="screen">
-      <h2>Make your mascot</h2>
+      <h2>Your study buddy</h2>
       <div class="studio">
         <div class="studio-preview">
           <figure><div class="mascot-slot" id="studioCalm"></div><figcaption>While you focus</figcaption></figure>
           <figure><div class="mascot-slot" id="studioAlert"></div><figcaption>When you get distracted</figcaption></figure>
         </div>
         <div class="panel studio-form">
-          <label class="field-label" for="mName">Name</label>
+          <label class="field-label" for="mName">Name your pup</label>
           <input id="mName" maxlength="16" />
 
-          <p class="field-label">Character</p>
-          <div class="chips" id="mKinds">
-            <button type="button" class="chip" data-kind="blob">Blob</button>
-            <button type="button" class="chip" data-kind="owl">Owl</button>
-            <button type="button" class="chip" data-kind="cat">Cat</button>
-            <button type="button" class="chip" data-kind="custom" id="mCustomChip" hidden>My picture</button>
-          </div>
-
-          <label class="field-label" for="mColor">Color</label>
-          <input id="mColor" type="color" />
-
-          <label class="field-label" for="mUpload">Or use your own drawing</label>
-          <input id="mUpload" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
-          <p class="hint">A PNG with a transparent background works best.</p>
-
           <details>
-            <summary>Edit what your mascot says</summary>
+            <summary>Edit what your pup says</summary>
             <p class="hint">One message per line. A random one is picked each time.</p>
             <div id="mMessages"></div>
           </details>
 
           <div class="button-row">
-            <button class="btn" id="mSave">Save mascot</button>
+            <button class="btn" id="mSave">Save</button>
             <button class="btn btn-quiet" id="mReset">Reset to Pip</button>
           </div>
           <p class="hint" id="mSaved" aria-live="polite"></p>

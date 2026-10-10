@@ -3,17 +3,18 @@
    Change the colors here to restyle the whole app.
    ========================================================= */
 :root {
-  --paper: #f6f3ff;        /* page background: soft lavender paper */
-  --card: #ffffff;
-  --ink: #23164a;          /* main text: deep indigo */
-  --muted: #6b6290;
-  --line: #dcd3fa;
-  --violet: #6c4cf1;       /* main brand color */
-  --violet-soft: #e9e3ff;
-  --mint: #22a86a;         /* focused / good */
-  --mint-soft: #ddf5e9;
-  --alarm: #ff4d6d;        /* distracted */
-  --sun: #ffc93c;          /* highlights */
+  /* Colors match the pixel dog (studybuddy-extension 2/pixelDog.js). */
+  --paper: #f7f1e8;        /* page background: warm cream paper */
+  --card: #fffdf9;
+  --ink: #3b2a1e;          /* main text: dark brown, the dog's outline */
+  --muted: #7a6656;
+  --line: #e6d6c2;
+  --violet: #8a5a35;       /* main brand color: the dog's brown (name kept so nothing else changes) */
+  --violet-soft: #f6dfb6;  /* the dog's cream */
+  --mint: #2f7f81;         /* focused / good: the dog's teal collar */
+  --mint-soft: #dcefef;
+  --alarm: #c94f3d;        /* distracted: the water bowl's red */
+  --sun: #f5c542;          /* highlights: the collar tag */
 
   --display: "Fredoka", "Trebuchet MS", sans-serif;
   --body: "DM Sans", system-ui, sans-serif;
@@ -91,13 +92,10 @@ textarea { width: 100%; resize: vertical; min-height: 72px; }
 
 /* ---------- Mascot ---------- */
 .mascot-slot { width: 160px; height: 160px; }
-.mascot-slot svg, .mascot-slot img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.mascot-slot[data-mood="calm"] > * { animation: bob 3s ease-in-out infinite; }
-.mascot-slot[data-mood="alert"] > * { animation: shake .45s ease-in-out infinite; }
-.mascot-slot[data-mood="happy"] > * { animation: hop .6s ease-out 2; }
-@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-@keyframes shake { 0%, 100% { transform: rotate(0) scale(1); } 25% { transform: rotate(-7deg) scale(1.04); } 75% { transform: rotate(7deg) scale(1.04); } }
-@keyframes hop { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-18px); } }
+/* The pixel dog animates itself (sleeping, nudging, celebrating), so it just needs to fill the slot. */
+.mascot-slot { display: flex; align-items: center; justify-content: center; }
+.mascot-slot .pixel-dog { width: 100%; }
+.mascot-slot svg { width: 100%; height: auto; display: block; }
 
 /* ---------- Home ---------- */
 .hero { display: flex; align-items: center; gap: 24px; margin: 24px 0 40px; }
@@ -122,7 +120,7 @@ textarea { width: 100%; resize: vertical; min-height: 72px; }
 .choice span:last-child { color: var(--muted); font-size: 15px; }
 .choice-icon { font-size: 28px; }
 .choice-main { background: var(--violet); color: #fff; }
-.choice-main span:last-child { color: #e6e0ff; }
+.choice-main span:last-child { color: #f6dfb6; }
 .choice-main:hover { border-color: var(--ink); }
 .today { margin-top: 28px; color: var(--muted); }
 
@@ -142,7 +140,7 @@ textarea { width: 100%; resize: vertical; min-height: 72px; }
 .item input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--mint); }
 .item .btn { padding: 8px 16px; font-size: 15px; }
 .icon-btn { background: none; border: none; color: var(--muted); font-size: 20px; padding: 4px 8px; border-radius: 8px; }
-.icon-btn:hover { color: var(--alarm); background: #ffe8ed; }
+.icon-btn:hover { color: var(--alarm); background: #fbe4df; }
 .when { font: 600 15px var(--display); color: var(--violet); min-width: 110px; }
 .empty { color: var(--muted); }
 
@@ -175,7 +173,7 @@ textarea { width: 100%; resize: vertical; min-height: 72px; }
 
 .cam {
   position: fixed; left: 16px; bottom: 16px; width: 200px; aspect-ratio: 4 / 3;
-  border-radius: 18px; overflow: hidden; background: var(--ink); box-shadow: 0 8px 24px rgba(35, 22, 74, .25);
+  border-radius: 18px; overflow: hidden; background: var(--ink); box-shadow: 0 8px 24px rgba(59, 42, 30, .25);
 }
 .cam video, .cam canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
 .cam-pill {
@@ -208,13 +206,14 @@ summary { cursor: pointer; font-weight: 700; }
 /* ---------- Full-screen alarm ---------- */
 .alarm {
   position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px;
-  background: rgba(255, 77, 109, .88);
+  background: rgba(201, 79, 61, .88);
   animation: flash 1.2s ease-in-out infinite;
 }
-.alarm.happy { background: rgba(34, 168, 106, .9); animation: none; }
-@keyframes flash { 0%, 100% { background: rgba(255, 77, 109, .88); } 50% { background: rgba(214, 40, 80, .92); } }
+.alarm.happy { background: rgba(47, 127, 129, .9); animation: none; }
+@keyframes flash { 0%, 100% { background: rgba(201, 79, 61, .88); } 50% { background: rgba(160, 52, 38, .92); } }
 .alarm-card {
-  background: var(--card); border-radius: 36px; padding: 32px 40px 36px; text-align: center;
+  background: var(--card); border: 4px solid var(--ink); border-radius: 12px; box-shadow: 6px 6px 0 rgba(0, 0, 0, .25);
+  padding: 32px 40px 36px; text-align: center;
   max-width: 520px; width: 100%; animation: pop .35s cubic-bezier(.2, 1.5, .4, 1);
 }
 @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }

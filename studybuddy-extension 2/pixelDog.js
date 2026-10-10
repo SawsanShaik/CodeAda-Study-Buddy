@@ -4,7 +4,7 @@
 //   dog.setState('nudge');
 // It also works inside a React component by passing a ref's element.
 
-export const STATES = ['sleeping', 'nudge', 'breakSuggestion', 'celebrate', 'play', 'run', 'runWithBall'];
+export const STATES = ['sleeping', 'idle', 'nudge', 'breakSuggestion', 'celebrate', 'play', 'run', 'runWithBall'];
 
 const WIDTH = 40;
 const HEIGHT = 26;
@@ -178,6 +178,11 @@ export const ANIMATIONS = {
       [...lying(), ['zBig', 35, 0]],
     ],
   },
+  // Calm and awake: sitting, blinking now and then, slow tail wag.
+  idle: {
+    fps: 3,
+    frames: range(8).map((i) => sitting({ eyes: i === 6 ? 'closed' : 'open', tail: i % 4 < 2 ? 'up' : 'side' })),
+  },
   // Played once when going from sleeping to any awake state.
   wake: {
     fps: 5,
@@ -264,6 +269,13 @@ export function spriteSvg(name, scale) {
     }),
   );
   return `<svg viewBox="0 0 ${w} ${h}" width="${w * scale}" height="${h * scale}" shape-rendering="crispEdges">${out}</svg>`;
+}
+
+// A still picture of the dog in a state (its first frame), as SVG markup.
+export function dogSvg(state, label = 'Pixel dog') {
+  const frame = frameToSvg(composeFrame(ANIMATIONS[state].frames[0]));
+  const safeLabel = String(label).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+  return `<svg viewBox="0 0 ${WIDTH} ${HEIGHT}" shape-rendering="crispEdges" role="img" aria-label="${safeLabel}">${frame}</svg>`;
 }
 
 export const PALETTE_COLORS = PALETTE;

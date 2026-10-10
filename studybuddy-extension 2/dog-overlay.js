@@ -73,6 +73,8 @@ const STYLE = `
 }
 .bubble.no-tail { margin-right: 0; }
 .bubble.no-tail::after { display: none; }
+.heading { margin: 0 18px 4px 0; font-size: 12px; font-weight: 700; color: #c94f3d; }
+.heading:empty { display: none; }
 .text { margin: 0 18px 0 0; }
 .actions { display: flex; gap: 8px; margin-top: 10px; }
 .actions:empty { display: none; }
@@ -250,12 +252,13 @@ export function createOverlay(options = {}) {
   const bubble = el('div', 'bubble');
   bubble.hidden = true;
   bubble.setAttribute('role', 'status');
+  const heading = el('p', 'heading');
   const text = el('p', 'text');
   const extra = el('div');
   const actions = el('div', 'actions');
   const close = el('button', 'close', '×');
   close.setAttribute('aria-label', 'Dismiss');
-  bubble.append(text, extra, actions, close);
+  bubble.append(heading, text, extra, actions, close);
 
   const dogButton = el('button', 'dog');
   dogButton.setAttribute('aria-label', 'Study buddy');
@@ -302,8 +305,9 @@ export function createOverlay(options = {}) {
 
   // ---- Speech bubble ----
 
-  function showBubble({ message, body = [], buttons = [], tail = true, autoHide = false }) {
+  function showBubble({ message, label = '', body = [], buttons = [], tail = true, autoHide = false }) {
     clearTimeout(hideTimer);
+    heading.textContent = label;
     text.textContent = message;
     extra.replaceChildren(...body);
     actions.replaceChildren(
@@ -574,12 +578,13 @@ export function createOverlay(options = {}) {
 
   // ---- Public controls ----
 
-  function say({ state = 'nudge', text: message = '', buttons = [] } = {}) {
+  function say({ state = 'nudge', heading: title = '', text: message = '', buttons = [] } = {}) {
     if (breakEndsAt) return; // no nudges during a break
     overlay.classList.add('open');
     dog.setState(state);
     showBubble({
       message,
+      label: title,
       buttons: buttons.map(({ label, action }) => ({
         label,
         onClick: action === 'take_break' ? showBreakPicker : () => respond(action),
@@ -597,10 +602,15 @@ export function createOverlay(options = {}) {
       hideBubble();
       overlay.classList.remove('open');
     },
+    // heading: optional small line above the text (e.g. "📱 Phone detected").
     // buttons: [{ label: 'Take a break', action: 'take_break' }, ...] (up to two).
     // A 'take_break' button opens the break-length picker instead of closing the bubble.
     say,
     hideBubble,
+    // True while the speech bubble is showing a message.
+    get talking() {
+      return !bubble.hidden;
+    },
     startBreak,
     endBreak,
     destroy() {

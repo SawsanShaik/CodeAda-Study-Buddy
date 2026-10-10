@@ -169,7 +169,7 @@ export class Detector {
     this.canvas.height = this.video.videoHeight;
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.lineWidth = 6;
-    this.ctx.strokeStyle = "#ff4d6d";
+    this.ctx.strokeStyle = "#c94f3d";
     for (const p of phones) this.ctx.strokeRect(...p.bbox);
   }
 }

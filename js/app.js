@@ -514,8 +514,6 @@ let draft = null;
 function renderStudio() {
   draft = JSON.parse(JSON.stringify(mascot));
   $("mName").value = draft.name;
-  $("mColor").value = draft.color;
-  $("mCustomChip").hidden = !draft.image;
   $("mSaved").textContent = "";
   $("mMessages").innerHTML = Object.keys(MESSAGE_LABELS).map(type => `<div class="msg-group">
       <label for="msg-${type}">${MESSAGE_LABELS[type]}</label>
@@ -527,51 +525,9 @@ function renderStudio() {
 function updatePreview() {
   renderMascot($("studioCalm"), draft, "calm");
   renderMascot($("studioAlert"), draft, "alert");
-  [...$("mKinds").children].forEach(c => c.classList.toggle("selected", c.dataset.kind === draft.kind));
 }
 
 $("mName").addEventListener("input", e => { draft.name = e.target.value.trim() || "Pip"; });
-$("mColor").addEventListener("input", e => {
-  draft.color = e.target.value;
-  if (draft.kind === "custom") draft.kind = "blob";
-  updatePreview();
-});
-$("mKinds").addEventListener("click", e => {
-  if (!e.target.dataset.kind) return;
-  draft.kind = e.target.dataset.kind;
-  updatePreview();
-});
-
-$("mUpload").addEventListener("change", async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  try {
-    draft.image = await shrinkImage(file, 360);
-    draft.kind = "custom";
-    $("mCustomChip").hidden = false;
-    updatePreview();
-  } catch {
-    $("mSaved").textContent = "That image couldn't be opened. Try a PNG or JPG file.";
-  }
-});
-
-// Resize uploads so they fit in the browser's storage
-function shrinkImage(file, maxSize) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-      const c = document.createElement("canvas");
-      c.width = Math.round(img.width * scale);
-      c.height = Math.round(img.height * scale);
-      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(img.src);
-      resolve(c.toDataURL("image/png"));
-    };
-    img.onerror = reject;
-    img.src = URL.createObjectURL(file);
-  });
-}
 
 $("mSave").addEventListener("click", () => {
   document.querySelectorAll("#mMessages textarea").forEach(t => {
@@ -587,9 +543,6 @@ $("mSave").addEventListener("click", () => {
 $("mReset").addEventListener("click", () => {
   draft = defaultMascot();
   $("mName").value = draft.name;
-  $("mColor").value = draft.color;
-  $("mCustomChip").hidden = true;
-  $("mUpload").value = "";
   document.querySelectorAll("#mMessages textarea").forEach(t => { t.value = DEFAULT_MESSAGES[t.dataset.type].join("\n"); });
   updatePreview();
 });
