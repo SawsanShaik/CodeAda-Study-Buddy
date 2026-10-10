@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>StudyBuddy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <button class="brand" data-go="home">StudyBuddy</button>
+    <nav aria-label="Main">
+      <button data-go="todo">To-do</button>
+      <button data-go="schedule">Schedule</button>
+      <button data-go="studio">Mascot</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- HOME -->
+    <section id="screen-home" class="screen active">
+      <div class="hero">
+        <div class="mascot-slot hero-mascot" id="homeMascot"></div>
+        <div class="speech">
+          <p class="speech-hi" id="homeHello">Hi! I'm Pip.</p>
+          <h1>What would you like to do today?</h1>
+        </div>
+      </div>
+
+      <div class="choices">
+        <button class="choice choice-main" data-go="setup">
+          <span class="choice-icon" aria-hidden="true">⏱️</span>
+          <b>Start a focus session</b>
+          <span>Set a timer and I'll keep you off your phone.</span>
+        </button>
+        <button class="choice" data-go="todo">
+          <span class="choice-icon" aria-hidden="true">✅</span>
+          <b>My to-do list</b>
+          <span id="homeTodoInfo">Add what you need to get done.</span>
+        </button>
+        <button class="choice" data-go="schedule">
+          <span class="choice-icon" aria-hidden="true">📅</span>
+          <b>My study schedule</b>
+          <span id="homeScheduleInfo">Plan when you'll study.</span>
+        </button>
+      </div>
+
+      <p class="today" id="homeToday"></p>
+    </section>
+
+    <!-- TO-DO -->
+    <section id="screen-todo" class="screen">
+      <h2>To-do list</h2>
+      <form id="todoForm" class="row-form">
+        <input id="todoText" placeholder="What do you need to do? e.g. CS 124 MP" required aria-label="Task" />
+        <input id="todoDue" type="date" aria-label="Due date (optional)" />
+        <button class="btn">Add task</button>
+      </form>
+      <ul id="todoList" class="list"></ul>
+      <p class="empty" id="todoEmpty">Nothing here yet. Add your first task above.</p>
+    </section>
+
+    <!-- SCHEDULE -->
+    <section id="screen-schedule" class="screen">
+      <h2>Study schedule</h2>
+      <form id="blockForm" class="row-form">
+        <input id="blockTask" placeholder="What will you study?" required list="todoOptions" aria-label="What will you study" />
+        <input id="blockDate" type="date" required aria-label="Date" />
+        <input id="blockTime" type="time" required aria-label="Start time" />
+        <label class="inline-num"><input id="blockMinutes" type="number" min="5" max="240" value="45" aria-label="Minutes" /> min</label>
+        <button class="btn">Add to schedule</button>
+      </form>
+      <datalist id="todoOptions"></datalist>
+      <ul id="blockList" class="list"></ul>
+      <p class="empty" id="blockEmpty">No study sessions planned. Add one above.</p>
+    </section>
+
+    <!-- SESSION SETUP -->
+    <section id="screen-setup" class="screen">
+      <div class="panel setup">
+        <h2>Set up your session</h2>
+
+        <label class="field-label" for="setupTask">What are you working on?</label>
+        <input id="setupTask" placeholder="e.g. Econ 102 problem set, or leave blank to just study" />
+        <div class="chips" id="setupTodoChips"></div>
+
+        <p class="field-label">How long?</p>
+        <div class="chips" id="durationChips">
+          <button type="button" class="chip" data-min="15">15 min</button>
+          <button type="button" class="chip" data-min="25">25 min</button>
+          <button type="button" class="chip" data-min="45">45 min</button>
+          <button type="button" class="chip" data-min="60">1 hour</button>
+        </div>
+        <label class="inline-num custom-min"><input id="setupMinutes" type="number" min="1" max="240" value="25" aria-label="Custom minutes" /> minutes</label>
+
+        <label class="toggle"><input type="checkbox" id="setupWriting" /> I'll be writing on paper, so looking down is OK</label>
+        <label class="toggle"><input type="checkbox" id="setupSound" checked /> Play a sound when I get distracted</label>
+
+        <button class="btn btn-big" id="startSessionBtn">Start session</button>
+        <p class="hint">Your camera stays on this laptop. No video is saved or uploaded.</p>
+        <p class="hint" id="extStatus"></p>
+      </div>
+    </section>
+
+    <!-- FOCUS SESSION -->
+    <section id="screen-session" class="screen">
+      <p class="session-task" id="sessionTask">Focus time</p>
+      <div class="ring-wrap">
+        <svg class="ring" viewBox="0 0 220 220" aria-hidden="true">
+          <circle class="ring-track" cx="110" cy="110" r="100" />
+          <circle class="ring-fill" id="ringFill" cx="110" cy="110" r="100" />
+        </svg>
+        <div class="ring-center">
+          <div class="mascot-slot ring-mascot" id="sessionMascot"></div>
+          <div class="time-left" id="timeLeft">25:00</div>
+        </div>
+      </div>
+      <p class="session-status" id="sessionStatus" aria-live="polite">Getting your camera ready…</p>
+
+      <div class="live-stats">
+        <div><b id="liveFocus">–</b><span>focused</span></div>
+        <div><b id="liveDistractions">0</b><span>distractions</span></div>
+        <div><b id="livePhone">0</b><span>phone pickups</span></div>
+      </div>
+
+      <div class="session-actions">
+        <button class="btn btn-quiet" id="recalibrateBtn">Recalibrate</button>
+        <button class="btn btn-stop" id="endSessionBtn">End session</button>
+      </div>
+
+      <div class="cam">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="overlay"></canvas>
+        <span class="cam-pill" id="camPill">Camera starting</span>
+      </div>
+    </section>
+
+    <!-- SUMMARY -->
+    <section id="screen-summary" class="screen">
+      <div class="panel summary">
+        <div class="mascot-slot summary-mascot" id="summaryMascot"></div>
+        <h2 id="summaryTitle">Session complete!</h2>
+        <p id="summaryLine" class="summary-line"></p>
+        <div class="stats">
+          <div><b id="sumTime">0 min</b><span>studied</span></div>
+          <div><b id="sumFocus">0%</b><span>focused</span></div>
+          <div><b id="sumDistractions">0</b><span>distractions</span></div>
+          <div><b id="sumPhone">0</b><span>phone pickups</span></div>
+        </div>
+        <label class="toggle" id="sumDoneWrap" hidden><input type="checkbox" id="sumDone" /> Mark "<span id="sumTaskName"></span>" as done</label>
+        <div class="button-row">
+          <button class="btn" id="anotherBtn">Start another session</button>
+          <button class="btn btn-quiet" data-go="home">Back home</button>
+        </div>
+      </div>
+      <h3>Recent sessions</h3>
+      <ul id="historyList" class="list"></ul>
+    </section>
+
+    <!-- MASCOT STUDIO -->
+    <section id="screen-studio" class="screen">
+      <h2>Make your mascot</h2>
+      <div class="studio">
+        <div class="studio-preview">
+          <figure><div class="mascot-slot" id="studioCalm"></div><figcaption>While you focus</figcaption></figure>
+          <figure><div class="mascot-slot" id="studioAlert"></div><figcaption>When you get distracted</figcaption></figure>
+        </div>
+        <div class="panel studio-form">
+          <label class="field-label" for="mName">Name</label>
+          <input id="mName" maxlength="16" />
+
+          <p class="field-label">Character</p>
+          <div class="chips" id="mKinds">
+            <button type="button" class="chip" data-kind="blob">Blob</button>
+            <button type="button" class="chip" data-kind="owl">Owl</button>
+            <button type="button" class="chip" data-kind="cat">Cat</button>
+            <button type="button" class="chip" data-kind="custom" id="mCustomChip" hidden>My picture</button>
+          </div>
+
+          <label class="field-label" for="mColor">Color</label>
+          <input id="mColor" type="color" />
+
+          <label class="field-label" for="mUpload">Or use your own drawing</label>
+          <input id="mUpload" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
+          <p class="hint">A PNG with a transparent background works best.</p>
+
+          <details>
+            <summary>Edit what your mascot says</summary>
+            <p class="hint">One message per line. A random one is picked each time.</p>
+            <div id="mMessages"></div>
+          </details>
+
+          <div class="button-row">
+            <button class="btn" id="mSave">Save mascot</button>
+            <button class="btn btn-quiet" id="mReset">Reset to Pip</button>
+          </div>
+          <p class="hint" id="mSaved" aria-live="polite"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- FULL-SCREEN MASCOT ALARM -->
+  <div class="alarm" id="alarm" hidden role="alertdialog" aria-labelledby="alarmMsg">
+    <div class="alarm-card">
+      <div class="mascot-slot alarm-mascot" id="alarmMascot"></div>
+      <p class="alarm-label" id="alarmLabel"></p>
+      <h2 id="alarmMsg">Phone down!</h2>
+      <button class="btn btn-big" id="alarmOk">I'm back on it</button>
+    </div>
+  </div>
+
+  <!-- AI models: TensorFlow.js + COCO-SSD find phones; MediaPipe is loaded in js/detector.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
