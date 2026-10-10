@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Focus Detection</title>
+  <style>
+    :root { --green: #2e7d32; --orange: #e8710a; --red: #c62828; --ink: #1f2a1f; --muted: #667066; --bg: #fffdf7; --card: #ffffff; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--ink); padding: 24px; }
+    h1 { margin: 0 0 4px; font-size: 26px; }
+    .sub { color: var(--muted); margin: 0 0 20px; }
+    .layout { display: grid; grid-template-columns: minmax(0, 640px) 300px; gap: 24px; align-items: start; }
+    @media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } }
+
+    #stage { position: relative; border-radius: 16px; overflow: hidden; background: #222; aspect-ratio: 4 / 3; }
+    video, canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    #pill { position: absolute; left: 12px; top: 12px; padding: 6px 12px; border-radius: 999px; font-weight: 600;
+            background: rgba(255,255,255,.92); }
+    #pill.focused { color: var(--green); }
+    #pill.distracted { color: var(--red); }
+
+    .card { background: var(--card); border-radius: 16px; padding: 16px; box-shadow: 0 2px 10px rgba(0,0,0,.06); margin-bottom: 16px; }
+    .card h2 { font-size: 16px; margin: 0 0 12px; }
+    button { font-size: 15px; padding: 10px 16px; border: none; border-radius: 8px; background: var(--green); color: white; cursor: pointer; margin: 0 6px 8px 0; }
+    button.secondary { background: #e7efe6; color: var(--ink); }
+    button:disabled { opacity: .5; cursor: default; }
+    label { display: block; margin: 8px 0; color: var(--ink); }
+
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat { background: #f4f8f3; border-radius: 10px; padding: 10px; }
+    .stat b { display: block; font-size: 24px; }
+    .stat span { color: var(--muted); font-size: 13px; }
+    #meter { height: 10px; background: #eee; border-radius: 99px; overflow: hidden; margin-top: 10px; }
+    #meterFill { height: 100%; width: 100%; background: var(--green); transition: width .4s; }
+
+    #debug { font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); white-space: pre; display: none; }
+    #status { color: var(--muted); font-size: 14px; margin-top: 8px; }
+
+    /* The mascot pop-up (placeholder look until the real mascot design is ready) */
+    #mascot { position: fixed; right: 24px; bottom: 24px; display: flex; align-items: flex-end; gap: 10px;
+              transform: translateY(160%); transition: transform .35s cubic-bezier(.2,1.4,.4,1); z-index: 10; }
+    #mascot.show { transform: translateY(0); }
+    #mascotFace { font-size: 64px; line-height: 1; animation: bob 1.6s ease-in-out infinite; }
+    #bubble { background: white; border: 3px solid var(--orange); border-radius: 16px 16px 4px 16px; padding: 12px 16px;
+              max-width: 260px; font-size: 16px; box-shadow: 0 6px 20px rgba(0,0,0,.15); }
+    #mascot.happy #bubble { border-color: var(--green); }
+    @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  </style>
+</head>
+<body>
+  <h1>Focus check</h1>
+  <p class="sub">Detects your phone, looking down, turning away, leaving, or getting sleepy. Video never leaves your laptop.</p>
+
+  <div class="layout">
+    <div>
+      <div id="stage">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="overlay"></canvas>
+        <div id="pill">Camera off</div>
+      </div>
+      <p id="status">Click "Start session" and allow camera access.</p>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2>Session</h2>
+        <button id="startBtn">Start session</button>
+        <button id="stopBtn" class="secondary" disabled>Stop</button>
+        <button id="calibrateBtn" class="secondary" disabled>Recalibrate</button>
+        <label><input type="checkbox" id="writingMode" /> I'm writing on paper (allow looking down)</label>
+        <label><input type="checkbox" id="soundOn" checked /> Sound when the mascot pops up</label>
+      </div>
+
+      <div class="card">
+        <h2>This session</h2>
+        <div class="stats">
+          <div class="stat"><b id="focusPct">–</b><span>focused</span></div>
+          <div class="stat"><b id="elapsed">0:00</b><span>time</span></div>
+          <div class="stat"><b id="distractions">0</b><span>distractions</span></div>
+          <div class="stat"><b id="phonePickups">0</b><span>phone pickups</span></div>
+        </div>
+        <div id="meter"><div id="meterFill"></div></div>
+      </div>
+
+      <div class="card">
+        <label><input type="checkbox" id="showDebug" /> Show detection numbers (for tuning)</label>
+        <div id="debug"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="mascot"><div id="bubble">Hi!</div><div id="mascotFace">🦉</div></div>
+
+  <!-- TensorFlow.js + COCO-SSD: spots objects like "cell phone" -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+
+  <script type="module">
+    // MediaPipe Face Landmarker: tracks 478 points on the face plus eye movements
+    import { FaceLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+
+    // ---------- SETTINGS (tune these while testing) ----------
+    const SETTINGS = {
+      phoneConfidence: 0.5,  // how sure the phone detector must be (0 to 1)
+      phoneCheckMs: 600,     // how often to look for a phone
+      faceCheckMs: 100,      // how often to check the face
+      awaySeconds: 3,        // no face this long = left the desk
+      turnedSeconds: 3,      // head turned this long = distracted
+      downSeconds: 4,        // looking down this long = probably on the phone
+      sleepySeconds: 3,      // eyes closed this long = sleepy
+      turnLimit: 0.15,       // how far the head can turn from normal
+      downLimit: 0.07,       // how far the head can tilt down from normal
+      eyesDownLimit: 0.55,   // how far the eyes can look down (0 to 1)
+      eyesClosedLimit: 0.6,  // how closed the eyes can be (0 to 1)
+    };
+
+    // What the mascot says for each kind of distraction
+    const MESSAGES = {
+      phone:  ["Phone down! Your future self says thanks.", "Caught you scrolling 👀 Back to it!", "That phone can wait. Your goals can't."],
+      down:   ["Looking down a lot… is that your phone? 👀", "Eyes up! Your work misses you.", "Is something on your lap more interesting than your goals?"],
+      turned: ["Eyes back on your work! You're doing great.", "Whatever's over there can wait 😉", "Focus mode: back to the screen!"],
+      away:   ["Where did you go? I'll be right here.", "Come back when you're ready! 🪑", "Taking a break? Don't forget to come back!"],
+      sleepy: ["Feeling sleepy? Maybe it's time for a break ☕", "Stay with me! Want to stretch for a minute?", "Your eyes look tired. Water break? 💧"],
+      back:   ["Welcome back! 🎉", "Yay, you're back! Let's go!", "Back on track, nice!"],
+    };
+    const LABELS = { phone: "📱 Phone detected", down: "👇 Looking down", turned: "↪️ Looking away", away: "🚶 Left the desk", sleepy: "😴 Eyes closed" };
+
+    // ---------- PAGE ELEMENTS ----------
+    const $ = id => document.getElementById(id);
+    const video = $("video"), canvas = $("overlay"), ctx = canvas.getContext("2d");
+    const pill = $("pill"), statusText = $("status"), mascot = $("mascot"), bubble = $("bubble");
+
+    // ---------- STATE ----------
+    let phoneModel = null, faceModel = null, timers = [];
+    let baseline = null, calibrationSamples = [];
+    let phoneRecent = [], phoneBusy = false, phoneNow = false;
+    let since = {};                 // when each problem started
+    let face = { found: false };    // latest face numbers
+    let current = null;             // current distraction, or null when focused
+    let stats = null;
+    let backTimer = null;
+
+    // ---------- START / STOP ----------
+    $("startBtn").addEventListener("click", startSession);
+    $("stopBtn").addEventListener("click", stopSession);
+    $("calibrateBtn").addEventListener("click", () => { baseline = null; calibrationSamples = []; setStatus("Look at your screen normally for 2 seconds…"); });
+    $("showDebug").addEventListener("change", e => { $("debug").style.display = e.target.checked ? "block" : "none"; });
+
+    async function startSession() {
+      $("startBtn").disabled = true;
+      try {
+        if (!video.srcObject) {
+          setStatus("Starting camera…");
+          video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+          await video.play();
+        }
+        if (!phoneModel || !faceModel) {
+          setStatus("Loading the AI models (about 5 to 10 seconds)…");
+          [phoneModel, faceModel] = await Promise.all([loadPhoneModel(), loadFaceModel()]);
+        }
+        baseline = null; calibrationSamples = []; since = {}; current = null; phoneRecent = [];
+        stats = { start: Date.now(), focused: 0, distracted: 0, distractions: 0, phone: 0 };
+        setStatus("Look at your screen normally for 2 seconds so I learn your normal position…");
+        timers = [
+          setInterval(checkFace, SETTINGS.faceCheckMs),
+          setInterval(checkPhone, SETTINGS.phoneCheckMs),
+          setInterval(tickSecond, 1000),
+        ];
+        $("stopBtn").disabled = false; $("calibrateBtn").disabled = false;
+      } catch (err) {
+        setStatus("Couldn't start: " + err.message);
+        console.error(err);
+        $("startBtn").disabled = false;
+      }
+    }
+
+    function stopSession() {
+      timers.forEach(clearInterval); timers = [];
+      hideMascot();
+      pill.textContent = "Session ended"; pill.className = "";
+      const total = stats.focused + stats.distracted;
+      const pct = total ? Math.round(100 * stats.focused / total) : 0;
+      setStatus(`Session done: ${pct}% focused, ${stats.distractions} distractions, ${stats.phone} phone pickups.`);
+      $("startBtn").disabled = false; $("stopBtn").disabled = true; $("calibrateBtn").disabled = true;
+    }
+
+    // ---------- LOAD THE TWO AI MODELS ----------
+    function loadPhoneModel() {
+      return window.cocoSsd.load();
+    }
+
+    async function loadFaceModel() {
+      const files = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+      return FaceLandmarker.createFromOptions(files, {
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+          delegate: "GPU",
+        },
+        runningMode: "VIDEO",
+        numFaces: 1,
+        outputFaceBlendshapes: true,   // gives eye movement scores like "eyeLookDown"
+      });
+    }
+
+    // ---------- FACE CHECK (MediaPipe) ----------
+    function checkFace() {
+      if (video.readyState < 2) return;
+      const result = faceModel.detectForVideo(video, performance.now());
+
+      if (!result.faceLandmarks || result.faceLandmarks.length === 0) {
+        face = { found: false };
+      } else {
+        const p = result.faceLandmarks[0];
+        const nose = p[1], leftEdge = p[234], rightEdge = p[454], forehead = p[10], chin = p[152];
+        const scores = result.faceBlendshapes?.[0]?.categories ?? [];
+        const score = name => scores.find(c => c.categoryName === name)?.score ?? 0;
+        face = {
+          found: true,
+          turn: (nose.x - leftEdge.x) / (rightEdge.x - leftEdge.x),  // about 0.5 when facing the camera
+          tilt: (nose.y - forehead.y) / (chin.y - forehead.y),       // goes up when the head tilts down
+          eyesDown: (score("eyeLookDownLeft") + score("eyeLookDownRight")) / 2,
+          eyesClosed: (score("eyeBlinkLeft") + score("eyeBlinkRight")) / 2,
+        };
+      }
+
+      // Learn the person's normal position during the first ~2 seconds
+      if (!baseline && face.found) {
+        calibrationSamples.push(face);
+        if (calibrationSamples.length >= 2000 / SETTINGS.faceCheckMs) {
+          const avg = key => calibrationSamples.reduce((sum, s) => sum + s[key], 0) / calibrationSamples.length;
+          baseline = { turn: avg("turn"), tilt: avg("tilt") };
+          setStatus("All set! Focus mode is on.");
+        }
+      }
+
+      decide();
+      showDebug();
+    }
+
+    // ---------- PHONE CHECK (TensorFlow.js) ----------
+    async function checkPhone() {
+      if (phoneBusy || video.readyState < 2) return;
+      phoneBusy = true;
+      const predictions = await phoneModel.detect(video);
+      phoneBusy = false;
+      const phones = predictions.filter(p => p.class === "cell phone" && p.score >= SETTINGS.phoneConfidence);
+      drawBoxes(phones);
+      phoneRecent.push(phones.length > 0);
+      if (phoneRecent.length > 3) phoneRecent.shift();
+      phoneNow = phoneRecent.filter(Boolean).length >= 2;   // seen in 2 of the last 3 checks
+    }
+
+    // ---------- DECIDE: focused or distracted? ----------
+    // Returns true only when a condition has been true for at least `seconds`
+    function lasted(key, condition, seconds) {
+      if (!condition) { since[key] = null; return false; }
+      since[key] ??= Date.now();
+      return Date.now() - since[key] >= seconds * 1000;
+    }
+
+    function decide() {
+      if (!baseline) return;
+      const writing = $("writingMode").checked;
+      const headDown = face.found && face.tilt - baseline.tilt > SETTINGS.downLimit;
+      const eyesDown = face.found && face.eyesDown > SETTINGS.eyesDownLimit;
+      const turned = face.found && Math.abs(face.turn - baseline.turn) > SETTINGS.turnLimit;
+      const closed = face.found && face.eyesClosed > SETTINGS.eyesClosedLimit && !eyesDown && !headDown;
+
+      // Check every problem (so each one's timer keeps running), then pick the most important
+      const found = {
+        phone: phoneNow,
+        down: lasted("down", !writing && (headDown || eyesDown), SETTINGS.downSeconds),
+        turned: lasted("turned", turned, SETTINGS.turnedSeconds),
+        away: lasted("away", !face.found, SETTINGS.awaySeconds),
+        sleepy: lasted("sleepy", closed, SETTINGS.sleepySeconds),
+      };
+      const problem = ["phone", "down", "turned", "away", "sleepy"].find(k => found[k]) ?? null;
+
+      if (problem !== current) {
+        if (problem) {
+          if (!current) stats.distractions++;
+          if (problem === "phone") stats.phone++;
+          showMascot(pick(MESSAGES[problem]), false);
+        } else {
+          showMascot(pick(MESSAGES.back), true);
+          clearTimeout(backTimer);
+          backTimer = setTimeout(() => { if (!current) hideMascot(); }, 2500);
+        }
+        current = problem;
+      }
+
+      pill.textContent = problem ? LABELS[problem] : "✅ Focused";
+      pill.className = problem ? "distracted" : "focused";
+    }
+
+    // ---------- STATS, once per second ----------
+    function tickSecond() {
+      if (!baseline) return;
+      current ? stats.distracted++ : stats.focused++;
+      const total = stats.focused + stats.distracted;
+      const pct = Math.round(100 * stats.focused / total);
+      const secs = Math.floor((Date.now() - stats.start) / 1000);
+      $("focusPct").textContent = pct + "%";
+      $("meterFill").style.width = pct + "%";
+      $("meterFill").style.background = pct >= 80 ? "var(--green)" : pct >= 50 ? "var(--orange)" : "var(--red)";
+      $("elapsed").textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+      $("distractions").textContent = stats.distractions;
+      $("phonePickups").textContent = stats.phone;
+    }
+
+    // ---------- MASCOT ----------
+    function showMascot(text, happy) {
+      bubble.textContent = text;
+      mascot.classList.toggle("happy", happy);
+      mascot.classList.add("show");
+      if (!happy && $("soundOn").checked) chime();
+    }
+    function hideMascot() { mascot.classList.remove("show"); }
+    function pick(list) { return list[Math.floor(Math.random() * list.length)]; }
+
+    function chime() {
+      const audio = new AudioContext();
+      const tone = audio.createOscillator(), volume = audio.createGain();
+      tone.frequency.value = 660;
+      volume.gain.setValueAtTime(0.15, audio.currentTime);
+      volume.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.4);
+      tone.connect(volume).connect(audio.destination);
+      tone.start(); tone.stop(audio.currentTime + 0.4);
+    }
+
+    // ---------- DRAWING + DEBUG ----------
+    function drawBoxes(phones) {
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.lineWidth = 4; ctx.strokeStyle = "#e8710a";
+      for (const p of phones) ctx.strokeRect(...p.bbox);
+    }
+
+    function showDebug() {
+      if (!$("showDebug").checked) return;
+      const n = v => (v ?? 0).toFixed(2);
+      $("debug").textContent = face.found
+        ? `turn       ${n(face.turn)}  (normal ${n(baseline?.turn)})\n` +
+          `tilt       ${n(face.tilt)}  (normal ${n(baseline?.tilt)})\n` +
+          `eyesDown   ${n(face.eyesDown)}\n` +
+          `eyesClosed ${n(face.eyesClosed)}\n` +
+          `phone      ${phoneNow}`
+        : `no face found\nphone      ${phoneNow}`;
+    }
+
+    function setStatus(text) { statusText.textContent = text; }
+  </script>
+</body>
+</html>

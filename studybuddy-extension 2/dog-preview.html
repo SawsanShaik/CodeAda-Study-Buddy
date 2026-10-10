@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pixel Dog Preview</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: system-ui, sans-serif;
+      background: #f4f1ec;
+      color: #3b2a1e;
+    }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    p { margin: 0 0 20px; color: #7a6656; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+    button {
+      font: inherit;
+      padding: 8px 14px;
+      border: 2px solid #5a3a22;
+      border-radius: 8px;
+      background: #fff;
+      color: #5a3a22;
+      cursor: pointer;
+    }
+    button[aria-pressed='true'] { background: #5a3a22; color: #fff; }
+    .stage {
+      display: flex;
+      justify-content: center;
+      padding: 24px;
+      background: #fff;
+      border-radius: 12px;
+      margin-bottom: 32px;
+    }
+    .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+    .card { background: #fff; border-radius: 12px; padding: 16px; text-align: center; }
+    .card code { display: block; margin-top: 8px; font-size: 13px; }
+    h2 { font-size: 16px; margin: 32px 0 8px; }
+  </style>
+</head>
+<body>
+  <h1>Pixel dog</h1>
+  <p>Click a state to see the transition. Going from sleeping to awake plays the wake-up animation first.</p>
+
+  <div class="controls" id="controls"></div>
+  <div class="stage" id="stage"></div>
+
+  <div class="gallery" id="gallery"></div>
+
+  <h2>Overlay</h2>
+  <p>The real overlay, bottom-right, the way it will look on websites.</p>
+  <div class="controls" id="overlay-controls">
+    <button data-overlay="open">Start session</button>
+    <button data-overlay="close">End session</button>
+    <button data-overlay="nudge">Nudge</button>
+    <button data-overlay="breakSuggestion">Break suggestion</button>
+    <button data-overlay="celebrate">Celebrate</button>
+    <button data-overlay="testBreak">Test break (15 sec)</button>
+  </div>
+  <p id="response"></p>
+
+  <script type="module">
+    import { createPixelDog, STATES } from './pixelDog.js';
+    import { createOverlay } from './dog-overlay.js';
+
+    const main = createPixelDog(document.getElementById('stage'), { scale: 8 });
+
+    const overlay = createOverlay({
+      onResponse: (action, data) =>
+        (document.getElementById('response').textContent = `CHARACTER_RESPONSE: ${action} ${data ? JSON.stringify(data) : ''}`),
+    });
+    const demos = {
+      nudge: { state: 'nudge', text: 'Psst! Looks like we wandered off. Back to the essay?', buttons: [{ label: "Let's go", action: 'back_to_work' }] },
+      breakSuggestion: {
+        state: 'breakSuggestion',
+        text: "You've reached for your phone a few times. Want to take a quick break?",
+        buttons: [{ label: 'Take a break', action: 'take_break' }, { label: "I'm good", action: 'dismiss' }],
+      },
+      celebrate: { state: 'celebrate', text: 'You did it! 90 focused minutes. 🎉' },
+    };
+    document.querySelectorAll('[data-overlay]').forEach((button) => {
+      const key = button.dataset.overlay;
+      button.onclick = () => {
+        if (key === 'open') overlay.open();
+        else if (key === 'close') overlay.close();
+        else if (key === 'testBreak') overlay.startBreak(Date.now() + 15_000);
+        else overlay.say(demos[key]);
+      };
+    });
+
+    const controls = document.getElementById('controls');
+    for (const state of STATES) {
+      const button = document.createElement('button');
+      button.textContent = state;
+      button.setAttribute('aria-pressed', String(state === main.state));
+      button.onclick = () => {
+        main.setState(state);
+        controls.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b === button)));
+      };
+      controls.appendChild(button);
+    }
+
+    const gallery = document.getElementById('gallery');
+    for (const state of STATES) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      gallery.appendChild(card);
+      createPixelDog(card, { scale: 4, state });
+      const label = document.createElement('code');
+      label.textContent = state;
+      card.appendChild(label);
+    }
+  </script>
+</body>
+</html>
