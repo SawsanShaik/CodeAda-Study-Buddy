@@ -165,9 +165,11 @@ textarea { width: 100%; resize: vertical; min-height: 72px; }
 .tag { font: 500 12px var(--body); color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; margin-left: 6px; }
 .item .pick-details { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 8px; padding-left: 36px; }
 .pick-details input { flex: 1 1 220px; }
-/* Scroll wheel for how long a task takes (js/planner.js). Rows are 32px; the middle one is picked. */
+/* Hours and minutes scroll wheels for how long a task takes (js/planner.js). Rows are 32px; the middle one is picked. */
+.time-picker { display: flex; align-items: center; gap: 6px; flex: none; }
+.time-picker span { color: var(--muted); font-size: 14px; }
 .time-wheel {
-  list-style: none; margin: 0; padding: 32px 0; width: 112px; height: 96px; flex: none;
+  list-style: none; margin: 0; padding: 32px 0; width: 52px; height: 96px; flex: none;
   overflow-y: auto; scroll-snap-type: y mandatory; overscroll-behavior: contain; scrollbar-width: none;
   border: 2px solid var(--line); border-radius: 14px;
   background: linear-gradient(transparent 30px, var(--violet-soft) 30px, var(--violet-soft) 62px, transparent 62px) var(--card);
@@ -176,7 +178,7 @@ textarea { width: 100%; resize: vertical; min-height: 72px; }
 }
 .time-wheel::-webkit-scrollbar { display: none; }
 .time-wheel:focus { border-color: var(--violet); outline: none; }
-.time-wheel li { height: 32px; line-height: 32px; text-align: center; scroll-snap-align: center; color: var(--muted); cursor: pointer; }
+.time-wheel li { height: 32px; line-height: 32px; text-align: center; scroll-snap-align: center; color: var(--muted); cursor: pointer; font-variant-numeric: tabular-nums; }
 .time-wheel li[aria-selected="true"] { color: var(--ink); font-weight: 700; }
 .pick-details { align-items: center; }
 .planner-times { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 20px; }

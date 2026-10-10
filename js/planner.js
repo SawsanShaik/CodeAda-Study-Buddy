@@ -16,44 +16,56 @@ const store = {
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 const FEED_PATTERN = /^https:\/\/(canvas\.illinois\.edu|[\w-]+\.instructure\.com)\/feeds\/calendars\/[^/]+\.ics$/;
-// How long a task takes: every 15 minutes up to 4 hours, picked by scrolling a little wheel.
-const TIME_OPTIONS = Array.from({ length: 16 }, (_, i) => (i + 1) * 15);
-const minutesLabel = m => {
-  const h = Math.floor(m / 60), rest = m % 60;
-  return h ? (rest ? `${h} hr ${rest}` : `${h} hr`) : `${m} min`;
-};
+// How long a task takes, picked on two scroll wheels: hours (0-10) and minutes (0-59).
+const HOURS = Array.from({ length: 11 }, (_, i) => i);
+const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 const WHEEL_ROW = 32;  // px, matches .time-wheel li in styles.css
-const timeWheel = (attr, id, selected) => `<ul class="time-wheel" ${attr}="${esc(id)}" data-value="${selected}" tabindex="0" role="listbox" aria-label="How long">
-    ${TIME_OPTIONS.map(m => `<li role="option" aria-selected="${m === selected}">${minutesLabel(m)}</li>`).join("")}
-  </ul>`;
+const wheel = (unit, values, selected) => `<ul class="time-wheel" data-unit="${unit}" tabindex="0" role="listbox" aria-label="${unit === "h" ? "Hours" : "Minutes"}">
+      ${values.map(v => `<li role="option" aria-selected="${v === selected}">${v}</li>`).join("")}
+    </ul>`;
+const timePicker = (attr, id, minutes) => `<div class="time-picker" ${attr}="${esc(id)}" data-value="${minutes}">
+    ${wheel("h", HOURS, Math.floor(minutes / 60))}<span>hr</span>
+    ${wheel("m", MINUTES, minutes % 60)}<span>min</span>
+  </div>`;
 
-// Scrolling a wheel snaps to a time, then fires a "change" event with the minutes in data-value.
+// Scrolling a wheel snaps to a number. The picker then fires a "change" event with the
+// total minutes in data-value (at least 5, so a task never takes no time).
 function initWheels(root) {
-  root.querySelectorAll(".time-wheel").forEach(wheel => {
-    const rows = [...wheel.children];
-    const select = i => {
-      const value = TIME_OPTIONS[i];
-      rows.forEach((row, j) => row.setAttribute("aria-selected", String(j === i)));
-      if (Number(wheel.dataset.value) === value) return;
-      wheel.dataset.value = value;
-      wheel.dispatchEvent(new Event("change", { bubbles: true }));
+  root.querySelectorAll(".time-picker").forEach(picker => {
+    const [hours, minutes] = picker.querySelectorAll(".time-wheel");
+    const index = w => Math.max(0, Math.min(w.children.length - 1, Math.round(w.scrollTop / WHEEL_ROW)));
+    const update = () => {
+      for (const w of [hours, minutes]) [...w.children].forEach((row, i) => row.setAttribute("aria-selected", String(i === index(w))));
+      const value = Math.max(5, index(hours) * 60 + index(minutes));
+      if (Number(picker.dataset.value) === value) return;
+      picker.dataset.value = value;
+      picker.dispatchEvent(new Event("change", { bubbles: true }));
     };
-    const goTo = i => wheel.scrollTo({ top: Math.max(0, Math.min(rows.length - 1, i)) * WHEEL_ROW, behavior: "smooth" });
-    wheel.scrollTop = TIME_OPTIONS.indexOf(Number(wheel.dataset.value)) * WHEEL_ROW;
-    let settle = null;
-    wheel.addEventListener("scroll", () => {
-      clearTimeout(settle);
-      settle = setTimeout(() => select(Math.round(wheel.scrollTop / WHEEL_ROW)), 120);
-    });
-    rows.forEach((row, i) => row.addEventListener("click", () => goTo(i)));
-    wheel.addEventListener("keydown", e => {
-      const step = { ArrowUp: -1, ArrowDown: 1 }[e.key];
-      if (!step) return;
-      e.preventDefault();
-      goTo(Math.round(wheel.scrollTop / WHEEL_ROW) + step);
-    });
+    const total = Number(picker.dataset.value);
+    hours.scrollTop = Math.floor(total / 60) * WHEEL_ROW;
+    minutes.scrollTop = (total % 60) * WHEEL_ROW;
+    for (const w of [hours, minutes]) {
+      const goTo = i => w.scrollTo({ top: i * WHEEL_ROW, behavior: "smooth" });
+      let settle = null;
+      w.addEventListener("scroll", () => {
+        clearTimeout(settle);
+        settle = setTimeout(update, 120);
+      });
+      [...w.children].forEach((row, i) => row.addEventListener("click", () => goTo(i)));
+      w.addEventListener("keydown", e => {
+        const step = { ArrowUp: -1, ArrowDown: 1 }[e.key];
+        if (!step) return;
+        e.preventDefault();
+        goTo(Math.max(0, Math.min(w.children.length - 1, index(w) + step)));
+      });
+    }
   });
 }
+
+const minutesLabel = m => {
+  const h = Math.floor(m / 60), rest = m % 60;
+  return h ? (rest ? `${h} hr ${rest} min` : `${h} hr`) : `${m} min`;
+};
 
 // ---------- Saved data ----------
 // Last Canvas data the extension sent, so the list shows right away.
@@ -252,7 +264,7 @@ function renderCanvasItem(e) {
       </div>
       ${pick ? `<div class="pick-details">
         <input data-amount="${esc(e.uid)}" value="${esc(pick.amount)}" placeholder="How much today? e.g. all of it, half, Q1–3" aria-label="How much today" />
-        ${timeWheel("data-minutes", e.uid, pick.minutes)}
+        ${timePicker("data-minutes", e.uid, pick.minutes)}
       </div>` : ""}
     </li>`;
 }
@@ -265,7 +277,7 @@ function renderTodoPicks(todos) {
     return `<li class="item${minutes ? " picked" : ""}">
       <input type="checkbox" data-todo="${t.id}" ${minutes ? "checked" : ""} aria-label="Plan ${esc(t.text)} today" />
       <div class="item-main"><div class="item-title">${esc(t.text)}</div></div>
-      ${minutes ? timeWheel("data-todo-minutes", t.id, minutes) : ""}
+      ${minutes ? timePicker("data-todo-minutes", t.id, minutes) : ""}
     </li>`;
   }).join("");
   initWheels($("todoPicks"));
