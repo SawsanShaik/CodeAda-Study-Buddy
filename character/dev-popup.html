@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Character tester</title>
+  <style>
+    body { width: 220px; margin: 0; padding: 12px; font: 13px system-ui, sans-serif; color: #3b2a1e; background: #f4f1ec; }
+    h1 { font-size: 14px; margin: 0 0 8px; }
+    h2 { font-size: 11px; margin: 12px 0 6px; text-transform: uppercase; letter-spacing: 0.05em; color: #7a6656; }
+    button { display: block; width: 100%; margin-bottom: 6px; padding: 7px; font: inherit; border: 2px solid #5a3a22; border-radius: 6px; background: #fff; color: #5a3a22; cursor: pointer; }
+    button:hover { background: #fff3e2; }
+    #status { margin-top: 8px; color: #7a6656; min-height: 1em; }
+  </style>
+</head>
+<body>
+  <h1>🐶 Character tester</h1>
+  <h2>Session</h2>
+  <button data-session="true">Start session (dog sleeps)</button>
+  <button data-session="false">End session (dog leaves)</button>
+  <h2>Send to this tab</h2>
+  <button data-demo="nudge">Nudge</button>
+  <button data-demo="breakSuggestion">Break suggestion</button>
+  <button data-demo="celebrate">Celebrate</button>
+  <h2>Breaks (all tabs)</h2>
+  <button id="test-break">Test break (15 sec)</button>
+  <div id="status"></div>
+  <script src="dev-popup.js"></script>
+</body>
+</html>
