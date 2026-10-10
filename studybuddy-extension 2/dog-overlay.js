@@ -706,7 +706,7 @@ export function createOverlay(options = {}) {
       overlay.classList.remove('open');
     },
     // heading: optional small line above the text (e.g. "📱 Phone detected").
-    // fullscreen: true covers the whole page (used when the phone is detected).
+    // fullscreen: true covers the whole page (used for distraction alerts).
     // buttons: [{ label: 'Take a break', action: 'take_break' }, ...] (up to two).
     // A 'take_break' button opens the break-length picker instead of closing the bubble.
     say,

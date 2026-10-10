@@ -39,7 +39,7 @@ async function handle(msg, sender) {
     if (msg.type === "distracted") {
       await alertUser(msg, {
         state: "nudge",
-        fullscreen: msg.problem === "phone",  // phone use takes over the whole screen
+        fullscreen: true,  // takes over the whole page, like the app's own alarm
         buttons: [
           { label: "I'm back on it", action: "dismiss" },
           { label: `Open ${msg.name ?? "StudyBuddy"}`, action: "go_to_app" },
