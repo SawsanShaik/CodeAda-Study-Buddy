@@ -19,8 +19,7 @@ const BALL_SCALE = 5;
 const BALL_SIZE = 4 * BALL_SCALE;
 const EDGE = 16; // gap between the dog and the edge of the screen
 const RUN_SPEED = 300; // px per second, matched to the gallop so the paws don't slide much
-const ZOOMIE_STOPS = 3; // random spots the dog runs to when a break starts
-const AUTO_THROW_MS = 4000; // the ball throws itself if nobody clicks it
+const THROW_PAUSE_MS = 1500; // how long the ball sits by the dog before the next throw
 // Center of the ball in the dog's mouth: from the dog's left edge, and up from its bottom.
 const MOUTH_RIGHT = 31 * DOG_SCALE;
 const MOUTH_LEFT = DOG_WIDTH - MOUTH_RIGHT;
@@ -181,7 +180,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #4fa3a5; outline-
 /* Full-screen layer the dog runs around in during breaks, above the dimmed page. */
 .field { position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; overflow: hidden; }
 .field .dog { position: absolute; bottom: ${EDGE}px; pointer-events: auto; }
-.ball { position: absolute; bottom: ${EDGE}px; padding: 0; border: none; background: none; line-height: 0; pointer-events: auto; }
+.ball { position: absolute; bottom: ${EDGE}px; line-height: 0; }
 .ball[hidden] { display: none; }
 .ball.ready { animation: ball-wiggle 0.5s ease-in-out infinite alternate; }
 
@@ -241,9 +240,9 @@ export function createOverlay(options = {}) {
   style.textContent = STYLE;
 
   const field = el('div', 'field');
-  const ball = el('button', 'ball');
+  const ball = el('div', 'ball');
   ball.hidden = true;
-  ball.setAttribute('aria-label', 'Throw the ball');
+  ball.setAttribute('aria-hidden', 'true');
   ball.innerHTML = spriteSvg('ball', BALL_SCALE);
   field.append(ball);
 
@@ -383,9 +382,7 @@ export function createOverlay(options = {}) {
     });
   }
 
-  card.querySelector('.break-hint').textContent = reducedMotion
-    ? 'Stretch, grab some water, look away from the screen.'
-    : 'Click the ball to play fetch with me!';
+  card.querySelector('.break-hint').textContent = 'Stretch, grab some water, look away from the screen.';
 
   endEarly.onclick = () => {
     onResponse('end_break');
@@ -526,22 +523,6 @@ export function createOverlay(options = {}) {
     return landed && animate(300, token, (t) => placeBall(toX, toY + 24 * 4 * t * (1 - t)));
   }
 
-  // Resolves when the user clicks the ball, or on its own after a few seconds.
-  function waitForThrow() {
-    return new Promise((resolve) => {
-      ball.classList.add('ready');
-      ball.style.cursor = 'pointer';
-      const done = () => {
-        clearTimeout(timeout);
-        ball.onclick = null;
-        ball.style.cursor = '';
-        resolve();
-      };
-      const timeout = setTimeout(done, AUTO_THROW_MS);
-      ball.onclick = done;
-    });
-  }
-
   async function startPlay() {
     const token = (playToken = {});
     if (reducedMotion) return dog.setState('play');
@@ -552,22 +533,15 @@ export function createOverlay(options = {}) {
       field.append(dogButton);
       placeDog(homeX(), EDGE);
     }
-    dog.setState('play');
-    await sleep(900);
-
-    // Zoomies around the screen to celebrate the break.
-    for (let i = 0; i < ZOOMIE_STOPS; i++) {
-      if (!(await runTo(randomSpot(), token))) return;
-    }
-    if (!(await runTo({ x: homeX(), y: EDGE }, token))) return;
 
     while (token === playToken) {
-      // Drop the ball next to the dog and wait for a throw.
+      // Drop the ball next to the dog, wiggle it for a moment, then it gets thrown.
       dog.setFacing('right');
       dog.setState('play');
       placeBall(dogX + SITTING_LEFT - BALL_SIZE - 4, dogY);
       ball.hidden = false;
-      await waitForThrow();
+      ball.classList.add('ready');
+      await sleep(THROW_PAUSE_MS);
       if (token !== playToken) return;
 
       // Pick where the dog will catch up with the ball, then land the ball in its mouth there.
@@ -587,7 +561,6 @@ export function createOverlay(options = {}) {
   async function stopPlay(finalState, { instant = false } = {}) {
     const token = (playToken = {});
     ball.hidden = true;
-    ball.onclick = null;
     ball.classList.remove('ready');
     if (dogButton.parentNode === field) {
       if (!instant && !reducedMotion && !(await runTo({ x: homeX(), y: EDGE }, token))) return;
