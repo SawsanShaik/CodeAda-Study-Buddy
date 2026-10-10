@@ -53,6 +53,47 @@ $("testNote").addEventListener("click", () => {
   });
 });
 
+// ----- Breaks -----
+// Setting breakEndsAt starts the break everywhere: the dog on every tab shows the
+// countdown, and background.js tells the app to pause the timer and camera.
+
+const clock = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+let breakTick = null;
+
+async function showBreak() {
+  const session = await chrome.runtime.sendMessage({ type: "get-state" });
+  const { breakEndsAt } = await chrome.storage.local.get("breakEndsAt");
+  clearInterval(breakTick);
+  $("breakPicker").hidden = !session || !!breakEndsAt;
+  $("onBreak").hidden = !session || !breakEndsAt;
+  if (session && breakEndsAt) {
+    const update = () => { $("breakLeft").textContent = Date.now() < breakEndsAt ? clock(breakEndsAt - Date.now()) : "Time's up!"; };
+    update();
+    breakTick = setInterval(update, 1000);
+  }
+}
+
+const syncChips = () => document.querySelectorAll("#breakChips .chip")
+  .forEach(c => c.setAttribute("aria-pressed", String(Number(c.dataset.min) === Number($("breakMinutes").value))));
+$("breakChips").addEventListener("click", e => {
+  if (!e.target.dataset.min) return;
+  $("breakMinutes").value = e.target.dataset.min;
+  syncChips();
+});
+$("breakMinutes").addEventListener("input", syncChips);
+syncChips();
+
+$("startBreak").addEventListener("click", async () => {
+  const minutes = Math.min(60, Math.max(1, Math.round(Number($("breakMinutes").value)) || 5));
+  await chrome.storage.local.set({ breakEndsAt: Date.now() + minutes * 60000 });
+  showBreak();
+});
+$("endBreak").addEventListener("click", async () => {
+  await chrome.storage.local.set({ breakEndsAt: null });
+  showBreak();
+});
+
 showStatus();
+showBreak();
 showSites();
 showNotificationSetting();

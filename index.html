@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>StudyBuddy</title>
+  <link rel="icon" type="image/png" href="studybuddy-extension%202/icon32.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
@@ -15,7 +16,7 @@
     <nav aria-label="Main">
       <button data-go="todo">To-do</button>
       <button data-go="schedule">Schedule</button>
-      <button data-go="studio">Mascot</button>
+      <button data-go="studio">My pup</button>
     </nav>
   </header>
 
@@ -127,6 +128,7 @@
       </div>
 
       <div class="session-actions">
+        <button class="btn btn-quiet" id="breakBtn">Take a break</button>
         <button class="btn btn-quiet" id="recalibrateBtn">Recalibrate</button>
         <button class="btn btn-stop" id="endSessionBtn">End session</button>
       </div>
@@ -162,39 +164,24 @@
 
     <!-- MASCOT STUDIO -->
     <section id="screen-studio" class="screen">
-      <h2>Make your mascot</h2>
+      <h2>Your study buddy</h2>
       <div class="studio">
         <div class="studio-preview">
           <figure><div class="mascot-slot" id="studioCalm"></div><figcaption>While you focus</figcaption></figure>
           <figure><div class="mascot-slot" id="studioAlert"></div><figcaption>When you get distracted</figcaption></figure>
         </div>
         <div class="panel studio-form">
-          <label class="field-label" for="mName">Name</label>
+          <label class="field-label" for="mName">Name your pup</label>
           <input id="mName" maxlength="16" />
 
-          <p class="field-label">Character</p>
-          <div class="chips" id="mKinds">
-            <button type="button" class="chip" data-kind="blob">Blob</button>
-            <button type="button" class="chip" data-kind="owl">Owl</button>
-            <button type="button" class="chip" data-kind="cat">Cat</button>
-            <button type="button" class="chip" data-kind="custom" id="mCustomChip" hidden>My picture</button>
-          </div>
-
-          <label class="field-label" for="mColor">Color</label>
-          <input id="mColor" type="color" />
-
-          <label class="field-label" for="mUpload">Or use your own drawing</label>
-          <input id="mUpload" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
-          <p class="hint">A PNG with a transparent background works best.</p>
-
           <details>
-            <summary>Edit what your mascot says</summary>
+            <summary>Edit what your pup says</summary>
             <p class="hint">One message per line. A random one is picked each time.</p>
             <div id="mMessages"></div>
           </details>
 
           <div class="button-row">
-            <button class="btn" id="mSave">Save mascot</button>
+            <button class="btn" id="mSave">Save</button>
             <button class="btn btn-quiet" id="mReset">Reset to Pip</button>
           </div>
           <p class="hint" id="mSaved" aria-live="polite"></p>

@@ -3,22 +3,49 @@
 <head>
   <meta charset="UTF-8" />
   <style>
-    body { width: 300px; margin: 0; padding: 18px; font: 14px/1.45 system-ui, sans-serif; color: #23164a; background: #f6f3ff; }
-    h1 { font: 700 20px "Trebuchet MS", sans-serif; color: #6c4cf1; margin: 0 0 10px; }
+    body { width: 300px; margin: 0; padding: 18px; font: 14px/1.45 system-ui, sans-serif; color: #3b2a1e; background: #f7f1e8; }
+    h1 { font: 700 20px "Trebuchet MS", sans-serif; color: #8a5a35; margin: 0 0 10px; }
     #status { background: #fff; border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
     #status b { display: block; font-size: 16px; }
-    button { width: 100%; border: none; border-radius: 999px; padding: 10px; font-weight: 700; font-size: 14px; background: #6c4cf1; color: #fff; cursor: pointer; }
-    button.quiet { background: #e9e3ff; color: #23164a; margin-top: 8px; }
+    button { width: 100%; border: none; border-radius: 999px; padding: 10px; font-weight: 700; font-size: 14px; background: #8a5a35; color: #fff; cursor: pointer; }
+    button.quiet { background: #f6dfb6; color: #3b2a1e; margin-top: 8px; }
     label { display: block; font-weight: 700; margin: 16px 0 6px; }
-    textarea { width: 100%; box-sizing: border-box; height: 110px; border: 2px solid #dcd3fa; border-radius: 12px; padding: 8px; font: inherit; resize: vertical; }
-    .hint { color: #6b6290; font-size: 12px; margin: 4px 0 0; }
+    textarea { width: 100%; box-sizing: border-box; height: 110px; border: 2px solid #e6d6c2; border-radius: 12px; padding: 8px; font: inherit; resize: vertical; }
+    .hint { color: #7a6656; font-size: 12px; margin: 4px 0 0; }
     label.check { display: flex; gap: 8px; align-items: flex-start; font-weight: 500; margin: 14px 0 0; }
-    label.check input { margin-top: 3px; accent-color: #6c4cf1; }
+    label.check input { margin-top: 3px; accent-color: #8a5a35; }
+    .break-box { background: #fff; border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
+    .break-box b { display: block; font-size: 15px; margin-bottom: 8px; }
+    .chips { display: flex; gap: 6px; margin-bottom: 8px; }
+    .chip { width: auto; flex: 1; padding: 5px 0; border: 2px solid #e6d6c2; background: #fff; color: #3b2a1e; font-weight: 600; font-size: 12px; }
+    .chip[aria-pressed="true"] { border-color: #8a5a35; background: #f6dfb6; }
+    label.custom { display: flex; align-items: center; gap: 6px; font-weight: 500; margin: 0 0 10px; }
+    label.custom input { width: 56px; border: 2px solid #e6d6c2; border-radius: 8px; padding: 3px 6px; font: inherit; }
+    .break-left { font: 700 34px/1.1 ui-monospace, Menlo, monospace; margin-bottom: 8px; }
   </style>
 </head>
 <body>
-  <h1>StudyBuddy <small style="font-size:12px;color:#6b6290">v1.3</small></h1>
+  <h1>StudyBuddy <small style="font-size:12px;color:#7a6656">v1.4</small></h1>
   <div id="status">Checking…</div>
+
+  <div id="breakPicker" class="break-box" hidden>
+    <b>Take a break</b>
+    <div class="chips" id="breakChips">
+      <button type="button" class="chip" data-min="3">3 min</button>
+      <button type="button" class="chip" data-min="5">5 min</button>
+      <button type="button" class="chip" data-min="10">10 min</button>
+      <button type="button" class="chip" data-min="15">15 min</button>
+    </div>
+    <label class="custom">Custom: <input id="breakMinutes" type="number" min="1" max="60" value="5" /> min</label>
+    <button id="startBreak">Start break</button>
+  </div>
+
+  <div id="onBreak" class="break-box" hidden>
+    <b>On a break 🐾</b>
+    <div class="break-left" id="breakLeft">5:00</div>
+    <button class="quiet" id="endBreak">End break</button>
+  </div>
+
   <button id="open">Open StudyBuddy</button>
 
   <label class="check"><input type="checkbox" id="systemNotifications" /> Mac notifications too, not just the pop-up on the page</label>

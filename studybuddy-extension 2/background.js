@@ -1,8 +1,8 @@
 // =========================================================
-// StudyBuddy extension background script.
-// Receives messages from the web app and shows the mascot
-// on whatever tab you're on, or as a system notification
-// when you're in another app.
+// StudyBuddy extension background script (the "brain").
+// Receives messages from the web app and prompts the pixel
+// dog on whatever tab you're on (see dog.js), or sends a
+// system notification when you're in another app.
 // =========================================================
 
 const isApp = url => !!url && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(url);
@@ -26,29 +26,80 @@ async function handle(msg, sender) {
       const { source, type, ...session } = msg;
       session.appTabId = sender.tab?.id;
       await chrome.storage.session.set({ session });
-      await chrome.action.setBadgeBackgroundColor({ color: "#6c4cf1" });
+      await setDogActive(true);  // the dog comes in and naps in the corner of every tab
+      await chrome.action.setBadgeBackgroundColor({ color: "#8a5a35" });
       await chrome.action.setBadgeText({ text: "ON" });
     }
     if (msg.type === "session-end") {
       await chrome.storage.session.remove("session");
+      await setDogActive(false);
       await chrome.action.setBadgeText({ text: "" });
       await sendToAllTabs({ type: "hide" });
     }
-    if (msg.type === "distracted") await alertUser(msg);
+    if (msg.type === "distracted") {
+      await alertUser(msg, {
+        state: "nudge",
+        fullscreen: true,  // takes over the whole page, like the app's own alarm
+        buttons: [
+          { label: "I'm back on it", action: "dismiss" },
+          { label: `Open ${msg.name ?? "StudyBuddy"}`, action: "go_to_app" },
+        ],
+      });
+    }
+    if (msg.type === "suggest-break") {
+      await alertUser(msg, {
+        state: "breakSuggestion",
+        buttons: [
+          { label: "Take a break", action: "take_break" },
+          { label: "I'm good", action: "dismiss" },
+        ],
+      });
+    }
     if (msg.type === "focused") await sendToAllTabs({ type: "focused", message: msg.message });
+    // The app started or ended a break itself; the dog on every tab follows along.
+    if (msg.type === "break-start") await chrome.storage.local.set({ breakEndsAt: msg.endsAt });
+    if (msg.type === "break-end") await chrome.storage.local.set({ breakEndsAt: null });
     return null;
   }
 
-  // ----- From the overlay or popup -----
+  // ----- From the dog, the site blocker, or the popup -----
   if (msg.type === "get-state") return getSession();
   if (msg.type === "go-to-app") return goToApp();
+  if (msg.type === "CHARACTER_RESPONSE" && msg.action === "go_to_app") return goToApp();
   return null;
+}
+
+// The dog (dog.js) watches these keys on every tab.
+function setDogActive(active) {
+  return chrome.storage.local.set({ sessionActive: active, breakEndsAt: null });
+}
+
+// Breaks can start from the dog on any tab (it writes breakEndsAt). Tell the app so it
+// pauses the timer and camera, and resumes when the break ends.
+chrome.storage.onChanged.addListener(async (changes, area) => {
+  if (area !== "local" || !("breakEndsAt" in changes)) return;
+  const endsAt = changes.breakEndsAt.newValue;
+  const { session } = await chrome.storage.session.get("session");
+  if (!session) return;
+  // While paused the session can't expire, and afterwards it ends that much later.
+  // (The app also sends its exact new end time when it resumes.)
+  const next = endsAt
+    ? { ...session, paused: true, pausedAt: session.paused ? session.pausedAt : Date.now() }
+    : { ...session, paused: false, endsAt: session.paused ? session.endsAt + (Date.now() - session.pausedAt) : session.endsAt };
+  await chrome.storage.session.set({ session: next });
+  await sendToApp(session, endsAt ? { type: "break-start", endsAt } : { type: "break-end" });
+});
+
+function sendToApp(session, message) {
+  if (!session.appTabId) return;
+  return chrome.tabs.sendMessage(session.appTabId, { source: "studybuddy-extension", ...message }).catch(() => {});
 }
 
 async function getSession() {
   const { session } = await chrome.storage.session.get("session");
-  if (session && Date.now() > session.endsAt) {
+  if (session && !session.paused && Date.now() > session.endsAt) {
     await chrome.storage.session.remove("session");
+    await setDogActive(false);
     await chrome.action.setBadgeText({ text: "" });
     return null;
   }
@@ -57,18 +108,21 @@ async function getSession() {
 
 let lastNoteId = null;
 
-async function alertUser(msg) {
-  const session = await getSession();
+// Get the user's attention: the dog says `msg.message` on the tab they're on
+// (prompt sets the dog's state and buttons), plus a system notification.
+async function alertUser(msg, prompt) {
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   const win = tab ? await chrome.windows.get(tab.windowId).catch(() => null) : null;
   const chromeInFront = !!win?.focused;
 
-  // Looking at the StudyBuddy tab: the app shows its own full-screen alarm
+  // Looking at the StudyBuddy tab: the app shows the alert itself
   if (chromeInFront && isApp(tab.url)) return;
 
-  // On another website: show the mascot overlay on that page
+  // On another website: the dog wakes up in the corner of that page and says something
   let shown = false;
-  if (chromeInFront) shown = await showOverlay(tab.id, { ...msg, type: "alarm", mascot: session?.mascotAlert });
+  if (chromeInFront) {
+    shown = await showOverlay(tab.id, { type: "SHOW_CHARACTER", heading: msg.label, text: msg.message, ...prompt });
+  }
 
   // Also send a Mac notification (always when Chrome isn't in front,
   // or every time if "Mac notifications too" is on in the popup)
@@ -86,15 +140,15 @@ async function alertUser(msg) {
   }
 }
 
-// Send the alarm to a tab. If the tab was open before the extension
-// was installed, add the overlay script to it first.
+// Send a prompt to the dog on a tab. If the tab was open before the extension
+// was installed, add the dog to it first.
 async function showOverlay(tabId, message) {
   try {
     await chrome.tabs.sendMessage(tabId, message);
     return true;
-  } catch { /* overlay script not on this page yet */ }
+  } catch { /* the dog isn't on this page yet */ }
   try {
-    await chrome.scripting.executeScript({ target: { tabId }, files: ["overlay.js"] });
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["dog.js", "site-blocker.js"] });
     await chrome.tabs.sendMessage(tabId, message);
     return true;
   } catch {

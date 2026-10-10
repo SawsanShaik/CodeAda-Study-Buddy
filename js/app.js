@@ -7,6 +7,7 @@ import {
   loadMascot, saveMascot, defaultMascot, renderMascot, pickMessage, mascotMarkup,
   PROBLEM_LABELS, MESSAGE_LABELS, DEFAULT_MESSAGES,
 } from "./mascots.js";
+import { createOverlay } from "../studybuddy-extension 2/dog-overlay.js";
 
 // ---------- Talking to the StudyBuddy Chrome extension ----------
 // The extension's relay script marks the page when it's installed.
@@ -267,6 +268,7 @@ async function startSession() {
     focused: 0, distracted: 0, distractions: 0, phone: 0,
     current: null, calibrated: false, snoozeUntil: 0, lastPing: 0,
     sound: $("setupSound").checked,
+    pickups: [], lastBreakOffer: 0, onBreak: false, breakStarted: 0,
   };
 
   go("session");
@@ -281,6 +283,15 @@ async function startSession() {
   detector.setWritingMode($("setupWriting").checked);
 
   session.tick = setInterval(tick, 1000);
+  announceSession();
+  if (!extensionInstalled() && "Notification" in window && Notification.permission === "default") {
+    Notification.requestPermission();
+  }
+  await startCamera();
+}
+
+// Tell the extension about the session (sent again with a later end time after a break)
+function announceSession() {
   tellExtension("session-start", {
     endsAt: session.started + session.plannedSecs * 1000,
     task: session.task || "Focus time",
@@ -288,13 +299,13 @@ async function startSession() {
     mascotAlert: mascotMarkup(mascot, "alert"),
     mascotHappy: mascotMarkup(mascot, "happy"),
   });
-  if (!extensionInstalled() && "Notification" in window && Notification.permission === "default") {
-    Notification.requestPermission();
-  }
+}
+
+async function startCamera() {
   try {
     setStatus("Loading the focus detector. This takes a few seconds the first time…");
     await detector.start();
-    if (session) setStatus("Look at your screen normally for 2 seconds so I can learn how you sit.");
+    if (session && !session.onBreak) setStatus("Look at your screen normally for 2 seconds so I can learn how you sit.");
   } catch (err) {
     console.error(err);
     const blocked = err.name === "NotAllowedError" || err.name === "NotFoundError";
@@ -306,7 +317,7 @@ async function startSession() {
 }
 
 function onDetect({ calibrating, problem }) {
-  if (!session) return;
+  if (!session || session.onBreak) return;
   if (calibrating) { setPill("Learning your position", ""); return; }
   if (!session.calibrated) {
     session.calibrated = true;
@@ -319,10 +330,15 @@ function onDetect({ calibrating, problem }) {
   if (problem !== session.current) {
     if (problem) {
       if (!session.current) session.distractions++;
-      if (problem === "phone") session.phone++;
+      if (problem === "phone") { session.phone++; session.pickups.push(Date.now()); }
       session.snoozeUntil = 0;
-      showAlarm(problem);
-      alertElsewhere(problem);
+      const offer = breakOffer(problem);
+      if (offer) {
+        suggestBreak(problem, offer);
+      } else {
+        showAlarm(problem);
+        alertElsewhere(problem);
+      }
     } else {
       showWelcomeBack();
       tellExtension("focused", { message: pickMessage(mascot, "back") });
@@ -345,12 +361,88 @@ function alertElsewhere(problem) {
 
 function tick() {
   if (!session) return;
-  if (session.calibrated) session.current ? session.distracted++ : session.focused++;
+  if (session.calibrated && !session.onBreak) session.current ? session.distracted++ : session.focused++;
   updateSessionView();
   if (elapsed() >= session.plannedSecs) endSession(true);
 }
 
-const elapsed = () => Math.floor((Date.now() - session.started) / 1000);
+// Time studied so far. It stands still during a break.
+const elapsed = () => Math.floor(((session.onBreak ? session.breakStarted : Date.now()) - session.started) / 1000);
+
+// =========================================================
+// Breaks: the dog suggests one, the user picks how long,
+// and the timer and camera pause until they're back.
+// =========================================================
+const BREAK_AFTER_PICKUPS = 3;              // phone pickups ...
+const PICKUP_WINDOW_MS = 10 * 60 * 1000;    // ... within this long suggests a break
+const BREAK_OFFER_COOLDOWN_MS = 10 * 60 * 1000;  // don't offer again sooner than this
+
+// The dog on this page (the extension shows it on every other tab)
+const buddy = createOverlay({
+  onResponse(action) { if (action === "dismiss") buddy.close(); },
+  requestBreak(endsAt) { startBreak(endsAt); tellExtension("break-start", { endsAt }); },
+  requestEndBreak() { endBreak(); tellExtension("break-end"); },
+});
+
+// From the extension: a break was started or ended from the dog on another tab
+window.addEventListener("message", e => {
+  if (e.source !== window || e.data?.source !== "studybuddy-extension") return;
+  if (e.data.type === "break-start") startBreak(e.data.endsAt);
+  if (e.data.type === "break-end") endBreak();
+});
+
+$("breakBtn").addEventListener("click", () => { if (session) buddy.pickBreak(); });
+
+// What the dog says when offering a break instead of the alarm, or null
+function breakOffer(problem) {
+  if (Date.now() - session.lastBreakOffer < BREAK_OFFER_COOLDOWN_MS) return null;
+  if (problem === "sleepy") return "Your eyes look tired. Want to take a real break?";
+  const recent = session.pickups.filter(t => Date.now() - t < PICKUP_WINDOW_MS).length;
+  if (problem === "phone" && recent >= BREAK_AFTER_PICKUPS) {
+    return `You've reached for your phone ${recent} times. Want to take a real break instead?`;
+  }
+  return null;
+}
+
+function suggestBreak(problem, message) {
+  session.lastBreakOffer = Date.now();
+  session.snoozeUntil = Date.now() + 30000;  // no alarm while they decide
+  session.lastPing = Date.now() + 20000;     // and no nudges on other tabs either
+  hideAlarm();
+  const prompt = { heading: PROBLEM_LABELS[problem], text: message };
+  if (!document.hidden) {
+    buddy.say({ ...prompt, state: "breakSuggestion", buttons: [{ label: "Take a break", action: "take_break" }, { label: "I'm good", action: "dismiss" }] });
+  }
+  tellExtension("suggest-break", { label: PROBLEM_LABELS[problem], message, name: mascot.name });
+  notifyIfHidden(`${mascot.name}: ${PROBLEM_LABELS[problem]}`, message);
+}
+
+function startBreak(endsAt) {
+  if (!session) return;
+  buddy.startBreak(endsAt);
+  if (session.onBreak) return;
+  session.onBreak = true;
+  session.breakStarted = Date.now();
+  hideAlarm();
+  detector?.stop();
+  $("ringFill").classList.remove("distracted");
+  renderMascot($("sessionMascot"), mascot, "calm");
+  setPill("On a break", "");
+  setStatus("Break time! The timer is paused and the camera is off until you're back.");
+  updateSessionView();
+}
+
+function endBreak() {
+  buddy.close();
+  if (!session?.onBreak) return;
+  session.started += Date.now() - session.breakStarted;  // the break doesn't count as study time
+  session.onBreak = false;
+  session.current = null;
+  session.calibrated = false;
+  announceSession();  // new end time for the extension
+  updateSessionView();
+  startCamera();
+}
 
 function updateSessionView() {
   const left = Math.max(0, session.plannedSecs - elapsed());
@@ -376,15 +468,17 @@ function endSession(finished) {
   clearInterval(session.tick);
   detector?.stop();
   hideAlarm();
+  buddy.close();
   tellExtension("session-end");
 
+  const studied = elapsed();
   const s = session;
   session = null;
   const total = s.focused + s.distracted;
   const result = {
     date: todayStr(),
     task: s.task || "Focus time",
-    seconds: Math.min(Math.floor((Date.now() - s.started) / 1000), s.plannedSecs),
+    seconds: Math.min(studied, s.plannedSecs),
     focusPct: total ? Math.round(100 * s.focused / total) : 100,
     distractions: s.distractions,
     phone: s.phone,
@@ -514,8 +608,6 @@ let draft = null;
 function renderStudio() {
   draft = JSON.parse(JSON.stringify(mascot));
   $("mName").value = draft.name;
-  $("mColor").value = draft.color;
-  $("mCustomChip").hidden = !draft.image;
   $("mSaved").textContent = "";
   $("mMessages").innerHTML = Object.keys(MESSAGE_LABELS).map(type => `<div class="msg-group">
       <label for="msg-${type}">${MESSAGE_LABELS[type]}</label>
@@ -527,51 +619,9 @@ function renderStudio() {
 function updatePreview() {
   renderMascot($("studioCalm"), draft, "calm");
   renderMascot($("studioAlert"), draft, "alert");
-  [...$("mKinds").children].forEach(c => c.classList.toggle("selected", c.dataset.kind === draft.kind));
 }
 
 $("mName").addEventListener("input", e => { draft.name = e.target.value.trim() || "Pip"; });
-$("mColor").addEventListener("input", e => {
-  draft.color = e.target.value;
-  if (draft.kind === "custom") draft.kind = "blob";
-  updatePreview();
-});
-$("mKinds").addEventListener("click", e => {
-  if (!e.target.dataset.kind) return;
-  draft.kind = e.target.dataset.kind;
-  updatePreview();
-});
-
-$("mUpload").addEventListener("change", async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  try {
-    draft.image = await shrinkImage(file, 360);
-    draft.kind = "custom";
-    $("mCustomChip").hidden = false;
-    updatePreview();
-  } catch {
-    $("mSaved").textContent = "That image couldn't be opened. Try a PNG or JPG file.";
-  }
-});
-
-// Resize uploads so they fit in the browser's storage
-function shrinkImage(file, maxSize) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-      const c = document.createElement("canvas");
-      c.width = Math.round(img.width * scale);
-      c.height = Math.round(img.height * scale);
-      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(img.src);
-      resolve(c.toDataURL("image/png"));
-    };
-    img.onerror = reject;
-    img.src = URL.createObjectURL(file);
-  });
-}
 
 $("mSave").addEventListener("click", () => {
   document.querySelectorAll("#mMessages textarea").forEach(t => {
@@ -587,9 +637,6 @@ $("mSave").addEventListener("click", () => {
 $("mReset").addEventListener("click", () => {
   draft = defaultMascot();
   $("mName").value = draft.name;
-  $("mColor").value = draft.color;
-  $("mCustomChip").hidden = true;
-  $("mUpload").value = "";
   document.querySelectorAll("#mMessages textarea").forEach(t => { t.value = DEFAULT_MESSAGES[t.dataset.type].join("\n"); });
   updatePreview();
 });

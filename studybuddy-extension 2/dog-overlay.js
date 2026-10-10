@@ -73,6 +73,8 @@ const STYLE = `
 }
 .bubble.no-tail { margin-right: 0; }
 .bubble.no-tail::after { display: none; }
+.heading { margin: 0 18px 4px 0; font-size: 12px; font-weight: 700; color: #c94f3d; }
+.heading:empty { display: none; }
 .text { margin: 0 18px 0 0; }
 .actions { display: flex; gap: 8px; margin-top: 10px; }
 .actions:empty { display: none; }
@@ -184,6 +186,44 @@ button:focus-visible, input:focus-visible { outline: 2px solid #4fa3a5; outline-
 .ball[hidden] { display: none; }
 .ball.ready { animation: ball-wiggle 0.5s ease-in-out infinite alternate; }
 
+/* Full-screen alert (e.g. phone detected): flashing red, big dog, big message. */
+.alert-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(201, 79, 61, 0.9);
+  font: 16px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #3b2a1e;
+  animation: alert-flash 1.2s ease-in-out infinite;
+}
+.alert-screen[hidden] { display: none; }
+.alert-screen.happy { background: rgba(47, 127, 129, 0.92); animation: none; }
+.alert-card {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 540px;
+  padding: 28px 40px 32px;
+  text-align: center;
+  background: #fffaf2;
+  border: 4px solid #5a3a22;
+  border-radius: 10px;
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.3);
+  animation: pop 0.25s ease-out;
+}
+.alert-dog { display: flex; justify-content: center; }
+.alert-label { margin: 12px 0 4px; font-size: 16px; font-weight: 700; color: #c94f3d; }
+.happy .alert-label { color: #2f7f81; }
+.alert-message { margin: 0 0 22px; font-size: clamp(24px, 4.5vw, 34px); font-weight: 700; line-height: 1.2; }
+.alert-card .actions { justify-content: center; flex-wrap: wrap; margin-top: 0; }
+.alert-card .action { padding: 10px 20px; font-size: 16px; }
+
+@keyframes alert-flash {
+  0%, 100% { background: rgba(201, 79, 61, 0.9); }
+  50% { background: rgba(160, 52, 38, 0.94); }
+}
 @keyframes pop {
   from { transform: scale(0.85); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
@@ -200,7 +240,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #4fa3a5; outline-
 }
 @media (prefers-reduced-motion: reduce) {
   .overlay { transition: none; }
-  .bubble, .ball.ready, .pill, .dim, .break-card { animation: none; }
+  .bubble, .ball.ready, .pill, .dim, .break-card, .alert-screen, .alert-card { animation: none; }
 }
 `;
 
@@ -250,12 +290,13 @@ export function createOverlay(options = {}) {
   const bubble = el('div', 'bubble');
   bubble.hidden = true;
   bubble.setAttribute('role', 'status');
+  const heading = el('p', 'heading');
   const text = el('p', 'text');
   const extra = el('div');
   const actions = el('div', 'actions');
   const close = el('button', 'close', '×');
   close.setAttribute('aria-label', 'Dismiss');
-  bubble.append(text, extra, actions, close);
+  bubble.append(heading, text, extra, actions, close);
 
   const dogButton = el('button', 'dog');
   dogButton.setAttribute('aria-label', 'Study buddy');
@@ -285,8 +326,19 @@ export function createOverlay(options = {}) {
   cardActions.append(endEarly);
   card.append(el('p', 'break-title', 'Break time! 🐾'), breakTimer, el('p', 'break-hint'), cardActions, minimize);
 
-  // Stacking: dimmed page < corner overlay < timer card < running dog and ball.
-  shadow.append(style, dim, overlay, card, field);
+  const alertScreen = el('div', 'alert-screen');
+  alertScreen.hidden = true;
+  alertScreen.setAttribute('role', 'alertdialog');
+  const alertCard = el('div', 'alert-card');
+  const alertDogSlot = el('div', 'alert-dog');
+  const alertLabel = el('p', 'alert-label');
+  const alertMessage = el('p', 'alert-message');
+  const alertActions = el('div', 'actions');
+  alertCard.append(alertDogSlot, alertLabel, alertMessage, alertActions);
+  alertScreen.append(alertCard);
+
+  // Stacking: dimmed page < corner overlay < timer card < running dog and ball < full-screen alert.
+  shadow.append(style, dim, overlay, card, field, alertScreen);
   document.documentElement.appendChild(host);
 
   const dog = createPixelDog(dogButton, { scale: DOG_SCALE });
@@ -299,11 +351,63 @@ export function createOverlay(options = {}) {
   let playToken = null; // replaced whenever play starts or stops, cancelling older loops
   let dogX = 0;
   let dogY = EDGE; // distance from the bottom of the screen
+  let alertDog = null; // the big dog on the full-screen alert, only while it's showing
+  let alertTimer = null;
+
+  // ---- Full-screen alert ----
+
+  function showAlert({ heading: title = '', text: message = '', buttons = [] }) {
+    clearTimeout(alertTimer);
+    alertScreen.classList.remove('happy');
+    alertScreen.setAttribute('aria-label', title || message);
+    alertLabel.textContent = title;
+    alertMessage.textContent = message;
+    alertActions.replaceChildren(
+      ...buttons.slice(0, 2).map(({ label, action }) => {
+        const button = el('button', 'action', label);
+        button.onclick = () => {
+          hideAlert();
+          respond(action);
+        };
+        return button;
+      }),
+    );
+    alertScreen.hidden = false;
+    alertDog ??= createPixelDog(alertDogSlot, { scale: 6 });
+    alertDog.setState('nudge');
+    alertActions.querySelector('button')?.focus();
+    // The corner dog is awake too.
+    hideBubble();
+    overlay.classList.add('open');
+    dog.setState('nudge');
+  }
+
+  // Back on task: the alert turns happy for a moment, then goes away.
+  function cheerAlert(message) {
+    clearTimeout(alertTimer);
+    alertScreen.classList.add('happy');
+    alertLabel.textContent = 'Focused again';
+    alertMessage.textContent = message;
+    alertActions.replaceChildren();
+    alertDog.setState('celebrate');
+    alertTimer = setTimeout(() => {
+      hideAlert();
+      dog.setState('sleeping');
+    }, 1600);
+  }
+
+  function hideAlert() {
+    clearTimeout(alertTimer);
+    alertScreen.hidden = true;
+    alertDog?.destroy();
+    alertDog = null;
+  }
 
   // ---- Speech bubble ----
 
-  function showBubble({ message, body = [], buttons = [], tail = true, autoHide = false }) {
+  function showBubble({ message, label = '', body = [], buttons = [], tail = true, autoHide = false }) {
     clearTimeout(hideTimer);
+    heading.textContent = label;
     text.textContent = message;
     extra.replaceChildren(...body);
     actions.replaceChildren(
@@ -422,6 +526,7 @@ export function createOverlay(options = {}) {
 
   function startBreak(endsAt) {
     if (endsAt === breakEndsAt) return;
+    hideAlert();
     clearInterval(breakTick);
     clearTimeout(hideTimer);
     breakEndsAt = endsAt;
@@ -574,12 +679,14 @@ export function createOverlay(options = {}) {
 
   // ---- Public controls ----
 
-  function say({ state = 'nudge', text: message = '', buttons = [] } = {}) {
+  function say({ state = 'nudge', heading: title = '', text: message = '', buttons = [], fullscreen = false } = {}) {
     if (breakEndsAt) return; // no nudges during a break
+    if (fullscreen) return showAlert({ heading: title, text: message, buttons });
     overlay.classList.add('open');
     dog.setState(state);
     showBubble({
       message,
+      label: title,
       buttons: buttons.map(({ label, action }) => ({
         label,
         onClick: action === 'take_break' ? showBreakPicker : () => respond(action),
@@ -594,13 +701,28 @@ export function createOverlay(options = {}) {
     },
     close() {
       endBreak({ instant: true });
+      hideAlert();
       hideBubble();
       overlay.classList.remove('open');
     },
+    // heading: optional small line above the text (e.g. "📱 Phone detected").
+    // fullscreen: true covers the whole page (used for distraction alerts).
     // buttons: [{ label: 'Take a break', action: 'take_break' }, ...] (up to two).
     // A 'take_break' button opens the break-length picker instead of closing the bubble.
     say,
     hideBubble,
+    // Opens the break-length picker right away (or the break screen if one is running).
+    pickBreak() {
+      if (breakEndsAt) return showBreakScreen();
+      overlay.classList.add('open');
+      dog.setState('breakSuggestion');
+      showBreakPicker();
+    },
+    // The user got back on task: the dog cheers if it was in the middle of telling them off.
+    cheer(message) {
+      if (!alertScreen.hidden) cheerAlert(message);
+      else if (!bubble.hidden && !breakEndsAt) say({ state: 'celebrate', text: message });
+    },
     startBreak,
     endBreak,
     destroy() {
