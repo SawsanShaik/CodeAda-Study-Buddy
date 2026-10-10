@@ -6,11 +6,22 @@
 // =========================================================
 import { parseIcs } from "./ics.js";
 
-const isApp = url => !!url && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(url);
+// The app is the extension's own page. It can also be served from localhost for development,
+// where relay.js passes messages along.
+const APP_URL = chrome.runtime.getURL("app.html");
+const isApp = url => !!url && (url.startsWith(APP_URL) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(url));
+
+// Send a message to the app: extension pages get runtime messages, localhost tabs get it through relay.js.
+function deliverToApp(tabId, message) {
+  const msg = { source: "studybuddy-extension", ...message };
+  chrome.runtime.sendMessage(msg).catch(() => { /* app page not open */ });
+  if (tabId) chrome.tabs.sendMessage(tabId, msg).catch(() => { /* not a localhost tab */ });
+}
 
 const DEFAULT_BLOCKED = ["youtube.com", "instagram.com", "tiktok.com", "x.com", "twitter.com", "reddit.com", "netflix.com", "facebook.com"];
 
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(async ({ reason }) => {
+  if (reason === "install") chrome.tabs.create({ url: APP_URL });  // say hi right after installing
   const { blocked } = await chrome.storage.local.get("blocked");
   if (!blocked) await chrome.storage.local.set({ blocked: DEFAULT_BLOCKED });
   chrome.alarms.create("canvas-refresh", { periodInMinutes: CANVAS_REFRESH_MINUTES });
@@ -112,8 +123,7 @@ chrome.storage.onChanged.addListener(async (changes, area) => {
 });
 
 function sendToApp(session, message) {
-  if (!session.appTabId) return;
-  return chrome.tabs.sendMessage(session.appTabId, { source: "studybuddy-extension", ...message }).catch(() => {});
+  deliverToApp(session.appTabId, message);
 }
 
 async function getSession() {
@@ -192,7 +202,7 @@ async function goToApp() {
       return true;
     } catch { /* app tab was closed */ }
   }
-  await chrome.tabs.create({ url: "http://localhost:8000/" });
+  await chrome.tabs.create({ url: APP_URL });
   return true;
 }
 
@@ -224,17 +234,16 @@ async function refreshCanvas() {
     }
   }
   await showDueBadge();
-  // Send the new events to every open StudyBuddy tab
+  // Send the new events to every open StudyBuddy page (and localhost tabs, for development)
+  await sendCanvas();
   const tabs = await chrome.tabs.query({ url: ["http://localhost/*", "http://127.0.0.1/*"] });
   await Promise.all(tabs.map(t => sendCanvas(t.id)));
 }
 
 async function sendCanvas(tabId) {
-  if (!tabId) return;
   const { feedUrl = "", events = [], lastUpdated = null, canvasError = null } =
     await chrome.storage.local.get(["feedUrl", "events", "lastUpdated", "canvasError"]);
-  await chrome.tabs.sendMessage(tabId, { source: "studybuddy-extension", type: "canvas-data", feedUrl, events, lastUpdated, error: canvasError })
-    .catch(() => {});
+  deliverToApp(tabId, { type: "canvas-data", feedUrl, events, lastUpdated, error: canvasError });
 }
 
 // The dog icon's badge shows how many things are due in the next 24 hours.

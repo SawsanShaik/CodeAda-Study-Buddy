@@ -7,14 +7,26 @@ import {
   loadMascot, saveMascot, defaultMascot, renderMascot, pickMessage, mascotMarkup,
   PROBLEM_LABELS, MESSAGE_LABELS, DEFAULT_MESSAGES,
 } from "./mascots.js";
-import { createOverlay, ding } from "../studybuddy-extension 2/dog-overlay.js";
+import { createOverlay, ding } from "../dog-overlay.js";
 import { setupPlanner } from "./planner.js";
 
 // ---------- Talking to the StudyBuddy Chrome extension ----------
-// The extension's relay script marks the page when it's installed.
+// The app normally runs as the extension's own page (app.html) and talks to it directly.
+// When served from localhost instead, the extension's relay.js passes messages along and
+// marks the page when it's installed. Either way, messages from the extension arrive as
+// window "message" events with source "studybuddy-extension".
+const insideExtension = location.protocol === "chrome-extension:";
+if (insideExtension) {
+  document.documentElement.dataset.studybuddyExtension = "installed";
+  chrome.runtime.onMessage.addListener(msg => {
+    if (msg?.source === "studybuddy-extension") window.postMessage(msg, location.origin);
+  });
+}
 const extensionInstalled = () => document.documentElement.dataset.studybuddyExtension === "installed";
 function tellExtension(type, data = {}) {
-  window.postMessage({ source: "studybuddy-app", type, ...data }, location.origin);
+  const msg = { source: "studybuddy-app", type, ...data };
+  if (insideExtension) chrome.runtime.sendMessage(msg).catch(() => { /* extension reloaded; ignore */ });
+  else window.postMessage(msg, location.origin);
 }
 // Without the extension, fall back to a system notification when this tab is hidden
 function notifyIfHidden(title, body) {
