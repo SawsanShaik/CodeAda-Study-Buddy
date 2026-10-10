@@ -7,10 +7,11 @@
 // - chrome.storage.local `breakEndsAt` (timestamp in ms, or null): a break is running
 //   until that time. Every tab shows the dimmed countdown and the dog plays fetch.
 // - Messages sent to a tab:
-//     SHOW_CHARACTER { state, heading?, text, buttons? }  makes the dog talk
+//     SHOW_CHARACTER { state, heading?, text, buttons?, fullscreen? }  makes the dog talk
 //       state: 'nudge' | 'breakSuggestion' | 'celebrate' | 'idle' | 'sleeping'
 //       buttons: [{ label, action }], up to two. A 'take_break' button opens the
 //       break-length picker.
+//       fullscreen: true covers the whole page with a big alert instead of a bubble.
 //     focused { message }  the user got back on task: the dog cheers if it was talking
 // - When the user answers, the dog sends CHARACTER_RESPONSE { action, ...data } to
 //   background.js. action: the button's action, 'dismiss' (×), 'take_break' (with
@@ -38,9 +39,7 @@
   // Registered right away so prompts sent while the dog is still loading aren't lost.
   chrome.runtime.onMessage.addListener((message) => {
     if (message?.type === 'SHOW_CHARACTER') ready.then((dog) => dog.say(message));
-    if (message?.type === 'focused') {
-      ready.then((dog) => dog.talking && dog.say({ state: 'celebrate', text: message.message }));
-    }
+    if (message?.type === 'focused') ready.then((dog) => dog.cheer(message.message));
   });
 
   ready.then(async (dog) => {
