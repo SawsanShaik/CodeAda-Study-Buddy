@@ -2,7 +2,13 @@
 
 StudyBuddy is a Chrome extension with a pixel dog study buddy. It watches your webcam (on your laptop only, nothing is uploaded) during focus sessions, and the dog nudges you when you pick up your phone or look away, suggests breaks, and plays fetch while you rest.
 
+## Get the extension
+
+Download the code: on this GitHub page click the green **Code** button, then **Download ZIP**, and unzip it. If you use git, you can `git clone` the repo instead. You only need the `studybuddy-extension 2` folder inside.
+
 ## Run it
+
+Works in Chrome or Edge on a computer (in Edge, use `edge://extensions`).
 
 1. Open `chrome://extensions` and turn on **Developer mode** (top right).
 2. Click **Load unpacked** and pick the `studybuddy-extension 2` folder.
