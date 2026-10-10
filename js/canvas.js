@@ -1,4 +1,4 @@
-// Helpers used by both the popup and the planner page.
+// Canvas calendar helpers used by the Schedule screen (js/planner.js).
 
 const DAY_MS = 86400000;
 
@@ -29,11 +29,12 @@ export function shortCourse(course) {
   return course.replace(/\b(FA|SP|SU|WI)\d{2}\b/i, "").replace(/\s{2,}/g, " ").trim() || course;
 }
 
-// Gives every course a stable color by hashing its name into a hue.
+// Gives every course a stable color by hashing its name. Colors come from the dog's palette (styles.css).
+const COURSE_COLORS = ["#8a5a35", "#2f7f81", "#c94f3d", "#a87b12", "#5f7a3a", "#7a6656"];
 export function courseColor(course) {
   let hash = 0;
   for (const ch of course || "") hash = (hash * 31 + ch.charCodeAt(0)) | 0;
-  return `hsl(${Math.abs(hash) % 360} 60% 42%)`;
+  return COURSE_COLORS[Math.abs(hash) % COURSE_COLORS.length];
 }
 
 // Groups events by course. Courses with the soonest due date come first.

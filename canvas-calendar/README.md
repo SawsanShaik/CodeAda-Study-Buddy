@@ -1,22 +1,9 @@
-# Canvas Calendar (Chrome extension)
+# Canvas calendar
 
-Shows your upcoming Canvas assignments grouped by class, with a badge for anything due in the next 24 hours. A full-tab planner lets you pick today's work, add your own tasks, and have Gemini build a schedule with breaks.
+The Canvas calendar is now part of StudyBuddy instead of a separate extension.
 
-## Load it
-1. Go to `chrome://extensions` and turn on **Developer mode**.
-2. Click **Load unpacked** and pick this folder.
-3. Click the extension icon, then paste your Canvas feed URL
-   (Canvas → Calendar → **Calendar Feed**, bottom right).
-4. Click **Plan my day ↗** to open the planner. For AI scheduling, paste a Gemini API key
-   (free at https://aistudio.google.com/apikey) under **Gemini settings**. Without a key it uses a simple built-in scheduler.
+- **Schedule screen** (`index.html`, `js/planner.js`): paste your Canvas feed link, see due dates grouped by class, tick what you'll work on today, and make a plan with Gemini (or the built-in planner when there's no API key). Each work block has a Start button that opens a focus session.
+- **StudyBuddy extension** (`studybuddy-extension 2/background.js`, `ics.js`): downloads the `.ics` feed every 30 minutes (a web page can't, because of CORS), sends the events to the app, and shows how many things are due in the next 24 hours on the dog icon.
+- `js/canvas.js` has the date and grouping helpers; `js/scheduler.js` talks to Gemini and holds the fallback planner.
 
-## How it works
-- `background.js` fetches the `.ics` feed (the service worker has host permission, so no CORS issue), every 30 minutes and on demand.
-- `ics.js` is a small dependency-free iCalendar parser. Canvas puts the course in brackets at the end of each title (`MP1 [CS 124 FA26]`), which it splits out.
-- Parsed events live in `chrome.storage.local`; `popup.js` renders them grouped by class.
-- `planner.js` collects today's picks and manual tasks; `scheduler.js` asks Gemini for a JSON schedule (structured output) or falls back to `localSchedule()`.
-
-See HOW-IT-WORKS.md for a file-by-file walkthrough.
-
-## Files
-manifest.json · background.js · ics.js · shared.js · popup.html/.css/.js · planner.html/.css/.js · scheduler.js
+Get the feed link from Canvas → Calendar → **Calendar Feed** (bottom right). Get a free Gemini key at https://aistudio.google.com/apikey and paste it under **Gemini settings** on the Schedule screen.

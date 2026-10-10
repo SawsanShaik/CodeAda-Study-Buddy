@@ -8,6 +8,7 @@ import {
   PROBLEM_LABELS, MESSAGE_LABELS, DEFAULT_MESSAGES,
 } from "./mascots.js";
 import { createOverlay } from "../studybuddy-extension 2/dog-overlay.js";
+import { setupPlanner } from "./planner.js";
 
 // ---------- Talking to the StudyBuddy Chrome extension ----------
 // The extension's relay script marks the page when it's installed.
@@ -188,6 +189,7 @@ function renderSchedule() {
       <button class="icon-btn" data-delete="${b.id}" aria-label="Delete">×</button>
     </li>`).join("");
   $("blockEmpty").hidden = list.length > 0;
+  planner.render();
 }
 
 $("blockList").addEventListener("click", e => {
@@ -198,6 +200,14 @@ $("blockList").addEventListener("click", e => {
     go("setup", { task: b.task, minutes: b.minutes, todoId: todo?.id });
   }
   if (del) { blocks = blocks.filter(x => x.id !== del); saveBlocks(); renderSchedule(); }
+});
+
+// Canvas due dates and "Plan my day" (js/planner.js)
+const planner = setupPlanner({
+  getTodos: () => todos,
+  startSession: (task, minutes) => go("setup", { task, minutes }),
+  tellExtension,
+  extensionInstalled,
 });
 
 // =========================================================

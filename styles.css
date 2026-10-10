@@ -69,10 +69,10 @@ main { max-width: 960px; margin: 0 auto; padding: 8px 16px 64px; }
 .btn-stop { background: var(--ink); }
 .btn:disabled { opacity: .5; cursor: default; }
 
-input[type="text"], input:not([type]), input[type="date"], input[type="time"], input[type="number"], textarea {
+input[type="text"], input:not([type]), input[type="date"], input[type="time"], input[type="number"], input[type="password"], select, textarea {
   border: 2px solid var(--line); background: var(--card); border-radius: 14px; padding: 10px 14px;
 }
-input:focus, textarea:focus { border-color: var(--violet); outline: none; }
+input:focus, select:focus, textarea:focus { border-color: var(--violet); outline: none; }
 textarea { width: 100%; resize: vertical; min-height: 72px; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 16px; }
@@ -143,6 +143,36 @@ textarea { width: 100%; resize: vertical; min-height: 72px; }
 .icon-btn:hover { color: var(--alarm); background: #fbe4df; }
 .when { font: 600 15px var(--display); color: var(--violet); min-width: 110px; }
 .empty { color: var(--muted); }
+
+/* ---------- Canvas due dates + Plan my day (js/planner.js) ---------- */
+.canvas-panel, .planner { padding: 24px 28px; }
+.canvas-panel a { color: var(--violet); }
+.feed-form { margin: 12px 0 0; }
+.error { color: var(--alarm); }
+.error:empty { display: none; }
+.canvas-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; }
+.canvas-bar .chips, .canvas-bar .toggle { margin: 0; }
+.canvas-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.canvas-actions .btn { padding: 8px 16px; font-size: 15px; }
+#canvasList, #todoPicks { margin-top: 12px; }
+.course-group { border-left: 4px solid var(--course); padding-left: 14px; margin: 20px 0; }
+.course-name { font: 600 18px var(--display); color: var(--course); margin-bottom: 8px; }
+.course-name span { font: 500 14px var(--body); color: var(--muted); margin-left: 6px; }
+.canvas-panel .item, .planner .item { background: var(--paper); }
+.item.picked { background: var(--violet-soft); }
+.item-title a { color: inherit; text-decoration: none; }
+.item-title a:hover { text-decoration: underline; }
+.tag { font: 500 12px var(--body); color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; margin-left: 6px; }
+.item .pick-details { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 8px; padding-left: 36px; }
+.pick-details input { flex: 1 1 220px; }
+.planner-times { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 20px; }
+.planner-times label { display: flex; flex-direction: column; gap: 6px; font-weight: 700; }
+.planner .btn-big { width: 100%; margin-top: 16px; }
+.plan-summary { background: var(--card); border-radius: 18px; padding: 14px 18px; }
+.item.plan-work { box-shadow: inset 4px 0 0 var(--violet); }
+.item.plan-break { background: var(--mint-soft); }
+.item.plan-break .when { color: var(--mint); }
+.item.plan-event { background: var(--violet-soft); }
 
 /* ---------- Setup ---------- */
 .setup { max-width: 640px; margin: 0 auto; }

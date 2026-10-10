@@ -77,6 +77,74 @@
       <datalist id="todoOptions"></datalist>
       <ul id="blockList" class="list"></ul>
       <p class="empty" id="blockEmpty">No study sessions planned. Add one above.</p>
+
+      <!-- Canvas due dates (the StudyBuddy extension downloads your Canvas feed) -->
+      <h3>Canvas due dates</h3>
+      <div class="panel canvas-panel">
+        <div id="canvasSetup">
+          <label class="field-label" for="feedUrl">Paste your Canvas calendar feed link</label>
+          <p class="hint">In <a href="https://canvas.illinois.edu/calendar" target="_blank" rel="noopener">Canvas Calendar</a>, click <b>Calendar Feed</b> at the bottom right and copy the link.</p>
+          <form id="feedForm" class="row-form feed-form">
+            <input id="feedUrl" placeholder="https://canvas.illinois.edu/feeds/calendars/user_….ics" required aria-label="Canvas feed link" />
+            <button class="btn">Save</button>
+          </form>
+          <p class="hint error" id="feedError"></p>
+        </div>
+        <div id="canvasMain" hidden>
+          <div class="canvas-bar">
+            <div class="chips" id="rangeChips">
+              <button type="button" class="chip" data-range="7">This week</button>
+              <button type="button" class="chip" data-range="14">2 weeks</button>
+              <button type="button" class="chip" data-range="30">30 days</button>
+            </div>
+            <label class="toggle"><input type="checkbox" id="assignmentsOnly" checked /> Assignments only</label>
+            <span class="canvas-actions">
+              <button type="button" class="btn btn-quiet" id="canvasRefresh">Refresh</button>
+              <button type="button" class="icon-btn" id="canvasSettings" aria-label="Change feed link" title="Change feed link">⚙</button>
+            </span>
+          </div>
+          <p class="hint error" id="canvasError"></p>
+          <p class="hint">Tick what you'll work on today, then make your plan below.</p>
+          <div id="canvasList"></div>
+          <p class="hint" id="canvasUpdated"></p>
+        </div>
+      </div>
+
+      <!-- Plan my day: Gemini (or a built-in planner) turns today's picks into a schedule -->
+      <h3>Plan my day</h3>
+      <div class="panel planner">
+        <p class="field-label">From your to-do list</p>
+        <ul id="todoPicks" class="list"></ul>
+        <p class="empty" id="todoPicksEmpty">No open to-dos. Add some on the To-do page.</p>
+
+        <div class="planner-times">
+          <label>Start <input id="dayStart" type="time" /></label>
+          <label>End <input id="dayEnd" type="time" /></label>
+          <label>Breaks <select id="breakStyle"></select></label>
+        </div>
+        <label class="field-label" for="planNotes">Anything else?</label>
+        <textarea id="planNotes" placeholder="e.g. gym at 5, I focus best in the morning"></textarea>
+
+        <p class="hint" id="pickedSummary"></p>
+        <button class="btn btn-big" id="makePlan">Make my schedule</button>
+        <p class="hint" id="planStatus" aria-live="polite"></p>
+
+        <details>
+          <summary>Gemini settings</summary>
+          <p class="hint">Get a free API key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. It's stored only in this browser. Without one, StudyBuddy makes a simple plan itself.</p>
+          <div class="planner-times">
+            <label>API key <input id="apiKey" type="password" placeholder="AIza…" /></label>
+            <label>Model <input id="geminiModel" placeholder="auto" title="Leave as auto to use the newest Gemini Flash model" /></label>
+            <button type="button" class="btn btn-quiet" id="saveGemini">Save</button>
+          </div>
+        </details>
+      </div>
+
+      <div id="planResult" hidden>
+        <h3>Today's plan</h3>
+        <p class="plan-summary" id="planSummary"></p>
+        <ul id="planBlocks" class="list"></ul>
+      </div>
     </section>
 
     <!-- SESSION SETUP -->

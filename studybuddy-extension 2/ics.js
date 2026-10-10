@@ -9,7 +9,7 @@ function unescapeText(value) {
   return value
     .replace(/\\n/gi, "\n")
     .replace(/\\,/g, ",")
-    .replace(/\;/g, ";")
+    .replace(/\\;/g, ";")
     .replace(/\\\\/g, "\\");
 }
 

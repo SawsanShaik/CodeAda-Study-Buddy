@@ -4,6 +4,7 @@
 // dog on whatever tab you're on (see dog.js), or sends a
 // system notification when you're in another app.
 // =========================================================
+import { parseIcs } from "./ics.js";
 
 const isApp = url => !!url && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(url);
 
@@ -12,6 +13,8 @@ const DEFAULT_BLOCKED = ["youtube.com", "instagram.com", "tiktok.com", "x.com", 
 chrome.runtime.onInstalled.addListener(async () => {
   const { blocked } = await chrome.storage.local.get("blocked");
   if (!blocked) await chrome.storage.local.set({ blocked: DEFAULT_BLOCKED });
+  chrome.alarms.create("canvas-refresh", { periodInMinutes: CANVAS_REFRESH_MINUTES });
+  refreshCanvas();
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -33,7 +36,7 @@ async function handle(msg, sender) {
     if (msg.type === "session-end") {
       await chrome.storage.session.remove("session");
       await setDogActive(false);
-      await chrome.action.setBadgeText({ text: "" });
+      await showDueBadge();
       await sendToAllTabs({ type: "hide" });
     }
     if (msg.type === "distracted") {
@@ -59,6 +62,13 @@ async function handle(msg, sender) {
     // The app started or ended a break itself; the dog on every tab follows along.
     if (msg.type === "break-start") await chrome.storage.local.set({ breakEndsAt: msg.endsAt });
     if (msg.type === "break-end") await chrome.storage.local.set({ breakEndsAt: null });
+    // Canvas calendar: the Schedule screen sets the feed link and asks for due dates.
+    if (msg.type === "canvas-set-feed") {
+      await chrome.storage.local.set({ feedUrl: msg.url });
+      await refreshCanvas();
+    }
+    if (msg.type === "canvas-refresh") await refreshCanvas();
+    if (msg.type === "canvas-get") await sendCanvas(sender.tab?.id);
     return null;
   }
 
@@ -100,7 +110,7 @@ async function getSession() {
   if (session && !session.paused && Date.now() > session.endsAt) {
     await chrome.storage.session.remove("session");
     await setDogActive(false);
-    await chrome.action.setBadgeText({ text: "" });
+    await showDueBadge();
     return null;
   }
   return session || null;
@@ -176,3 +186,57 @@ async function goToApp() {
 }
 
 chrome.notifications.onClicked.addListener(() => goToApp());
+
+// =========================================================
+// Canvas calendar: downloads your Canvas feed (.ics) every
+// 30 minutes. The extension can fetch it without CORS errors,
+// which the web app can't, so the app asks us for the events.
+// =========================================================
+const CANVAS_REFRESH_MINUTES = 30;
+
+chrome.runtime.onStartup.addListener(refreshCanvas);
+chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === "canvas-refresh") refreshCanvas(); });
+
+async function refreshCanvas() {
+  const { feedUrl } = await chrome.storage.local.get("feedUrl");
+  if (!feedUrl) {
+    await chrome.storage.local.set({ canvasError: null });
+  } else {
+    try {
+      const res = await fetch(feedUrl, { cache: "no-store" });
+      if (!res.ok) throw new Error(`Canvas returned ${res.status}`);
+      const text = await res.text();
+      if (!text.includes("BEGIN:VCALENDAR")) throw new Error("That link didn't return a calendar feed.");
+      await chrome.storage.local.set({ events: parseIcs(text), lastUpdated: Date.now(), canvasError: null });
+    } catch (err) {
+      await chrome.storage.local.set({ canvasError: err.message });
+    }
+  }
+  await showDueBadge();
+  // Send the new events to every open StudyBuddy tab
+  const tabs = await chrome.tabs.query({ url: ["http://localhost/*", "http://127.0.0.1/*"] });
+  await Promise.all(tabs.map(t => sendCanvas(t.id)));
+}
+
+async function sendCanvas(tabId) {
+  if (!tabId) return;
+  const { feedUrl = "", events = [], lastUpdated = null, canvasError = null } =
+    await chrome.storage.local.get(["feedUrl", "events", "lastUpdated", "canvasError"]);
+  await chrome.tabs.sendMessage(tabId, { source: "studybuddy-extension", type: "canvas-data", feedUrl, events, lastUpdated, error: canvasError })
+    .catch(() => {});
+}
+
+// The dog icon's badge shows how many things are due in the next 24 hours.
+// During a focus session it says "ON" instead.
+async function showDueBadge() {
+  const { session } = await chrome.storage.session.get("session");
+  if (session) return;
+  const { events = [] } = await chrome.storage.local.get("events");
+  const now = Date.now();
+  const soon = events.filter(e => {
+    const t = new Date(e.start).getTime();
+    return t >= now && t - now <= 24 * 60 * 60 * 1000;
+  }).length;
+  await chrome.action.setBadgeBackgroundColor({ color: "#c94f3d" });
+  await chrome.action.setBadgeText({ text: soon ? String(soon) : "" });
+}
