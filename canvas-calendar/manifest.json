@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Canvas Calendar",
+  "version": "0.2.0",
+  "description": "Your Canvas calendar and upcoming due dates, one click away.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Canvas Calendar"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://canvas.illinois.edu/*",
+    "https://*.instructure.com/*",
+    "https://generativelanguage.googleapis.com/*"
+  ]
+}
